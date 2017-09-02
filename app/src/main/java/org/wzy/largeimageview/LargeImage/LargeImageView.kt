@@ -17,8 +17,8 @@ class LargeImageView : View {
     private var cells: List<Cell>? = null
     private var transX: Int = 0
     private var transY: Int = 0
+    private var scale: Float = 1.0f
     private val bitmapRect: Rect = Rect()
-    private val drawRect: Rect = Rect()
 
     fun setCells(cells: List<Cell>) {
         this.cells = cells
@@ -27,13 +27,12 @@ class LargeImageView : View {
 
     override fun onDraw(canvas: Canvas?) {
         super.onDraw(canvas)
-        getDrawingRect(drawRect)
         if (cells != null) {
             canvas?.save()
+            canvas?.scale(scale, scale)
             canvas?.translate(-1 * transX.toFloat(), -1 * transY.toFloat())
-            drawRect.offset(transX, transY)
             for ((bitmap, region) in cells!!) {
-                if (bitmap != null && drawRect.intersects(region.left, region.top, region.right, region.bottom)) {
+                if (bitmap != null) {
                     bitmapRect.left = 0
                     bitmapRect.top = 0
                     bitmapRect.right = bitmap.width
@@ -52,7 +51,19 @@ class LargeImageView : View {
         invalidate()
     }
 
+    fun setScale(scale: Float) {
+        this.scale += scale
+        if (this.scale < 0.2) {
+            this.scale = 0.2f
+        } else if (this.scale > 4) {
+            this.scale = 4.0f
+        }
+        invalidate()
+    }
+
     fun getDisplayRect(): Rect {
-        return Rect(transX, transY, transX + width, transY + height)
+        val scaleWidth: Float = width / scale
+        val scaleHeight: Float = height / scale
+        return Rect(transX, transY, transX + scaleWidth.toInt(), transY + scaleHeight.toInt())
     }
 }

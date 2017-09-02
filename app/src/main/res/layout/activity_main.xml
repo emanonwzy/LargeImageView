@@ -46,6 +46,18 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="右移" />
+
+        <Button
+            android:id="@+id/zoom_in"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="放大"
+            android:layout_marginRight="4dp"/>
+        <Button
+            android:id="@+id/zoom_out"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="缩小" />
     </LinearLayout>
 
 </RelativeLayout>

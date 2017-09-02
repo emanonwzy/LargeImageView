@@ -35,39 +35,52 @@ class BitmapLoader(val decoder: BitmapRegionDecoder,
     }
 
     fun updateDisplayRect(rect: Rect) {
-        val options = BitmapFactory.Options()
-        options.inPreferredConfig = Bitmap.Config.RGB_565
-        val intestCells: List<Cell>? = getCellRects(rect)
-        Log.d("www", "interest cell=" + intestCells?.size)
-        intestCells?.map {
-            if (it.bitmap == null) {
-                it.bitmap = decoder.decodeRegion(it.region, options)
-                Log.d("www", "decode cell, rect=" + it.region + ", bitmap=(" + it.bitmap?.width + "," + it.bitmap?.height + ")")
-                loaderInterface?.cellLoaded(it)
-            }
-        }
-    }
 
-    /**
-     * get divider rects
-     */
-    private fun getCellRects(rect: Rect) : List<Cell>? {
+        Log.d("www", "updateDisplayRect =" + rect)
         // validate rect
         val width = rect.width()
         val height = rect.height()
-        rect.intersect(0, 0, bitmapWidth, bitmapHeight)
+        // bigger than bitmap
+        if (!rect.intersect(0, 0, bitmapWidth, bitmapHeight))
+            return
+
+        Log.d("www", "rect1=" + rect)
         if (rect.left == 0)
             rect.right = width
         else if (rect.right == bitmapWidth)
             rect.left = rect.right - width
+
         if (rect.top == 0)
             rect.bottom = height
         else if (rect.bottom == bitmapHeight)
             rect.top = rect.bottom - height
 
+        rect.intersect(0, 0, bitmapWidth, bitmapHeight)
+        Log.d("www", "validate rect=" + rect)
+
         // cache
         rect.inset(-1 * rect.width() / 4, -1 * rect.height() / 4)
-        Log.d("www", "getCellRects=" + rect)
-        return cells.filter { it.region.intersects(rect.left, rect.top, rect.right, rect.bottom) }
+
+        val options = BitmapFactory.Options()
+        options.inPreferredConfig = Bitmap.Config.RGB_565
+        cells.map {
+            val isInterest = it.region.intersects(rect.left, rect.top, rect.right, rect.bottom)
+            if (isInterest) {
+                if (it.bitmap == null) {
+                    it.bitmap = decoder.decodeRegion(it.region, options)
+                    Log.d("www", "decode cell, rect=" + it.region + ", bitmap=(" + it.bitmap?.width + "," + it.bitmap?.height + ")")
+                    loaderInterface?.cellLoaded(it)
+                }
+            } else {
+                if (it.bitmap != null) {
+                    val temp: Bitmap = it.bitmap!!
+                    it.bitmap = null
+                    temp.recycle()
+                    Log.d("www", "recycle cell, rect=" + it.region)
+
+                    loaderInterface?.cellRecycled(it)
+                }
+            }
+        }
     }
 }

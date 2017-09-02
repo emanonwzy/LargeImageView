@@ -60,6 +60,12 @@ class MainActivity : AppCompatActivity(), CellLoaderInterface {
         }
     }
 
+    override fun cellRecycled(cell: Cell) {
+        mainHandler.post {
+            cells.remove(cell)
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
@@ -89,12 +95,22 @@ class MainActivity : AppCompatActivity(), CellLoaderInterface {
         }
 
         top.setOnClickListener {
-            img.setTransXY(0, -100)
+            img.setTransXY(0, 100)
             updateImg(img.getDisplayRect())
         }
 
         bottom.setOnClickListener {
-            img.setTransXY(0, 100)
+            img.setTransXY(0, -100)
+            updateImg(img.getDisplayRect())
+        }
+
+        zoom_in.setOnClickListener {
+            img.setScale(0.2f)
+            updateImg(img.getDisplayRect())
+        }
+
+        zoom_out.setOnClickListener {
+            img.setScale(-0.2f)
             updateImg(img.getDisplayRect())
         }
     }
