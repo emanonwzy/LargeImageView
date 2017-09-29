@@ -5,5 +5,4 @@ package org.wzy.largeimageview.LargeImage
  */
 interface CellLoaderInterface {
     fun cellLoaded(cell: Cell)
-    fun cellRecycled(cell: Cell)
 }
