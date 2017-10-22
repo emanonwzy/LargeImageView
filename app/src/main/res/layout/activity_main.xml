@@ -20,12 +20,14 @@
             android:id="@+id/top"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:visibility="gone"
             android:text="上移"
             android:layout_marginBottom="4dp"/>
         <Button
             android:id="@+id/bottom"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:visibility="gone"
             android:text="下移" />
     </LinearLayout>
 
@@ -40,23 +42,27 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="左移"
-            android:layout_marginRight="4dp"/>
+            android:layout_marginRight="4dp"
+            android:visibility="gone"/>
         <Button
             android:id="@+id/right"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:visibility="gone"
             android:text="右移" />
 
         <Button
             android:id="@+id/zoom_in"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:visibility="gone"
             android:text="放大"
             android:layout_marginRight="4dp"/>
         <Button
             android:id="@+id/zoom_out"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:visibility="gone"
             android:text="缩小" />
     </LinearLayout>
 

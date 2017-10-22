@@ -9,20 +9,31 @@ import android.os.Looper
 import android.os.Message
 import android.util.AttributeSet
 import android.util.Log
+import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import java.io.InputStream
 
 /**
  * Created by zeyiwu on 26/08/2017.
  */
-class LargeImageView : View, CellLoaderInterface {
+class LargeImageView : View, CellLoaderInterface, OnGestureListener, View.OnTouchListener {
     constructor(ctx: Context) : super(ctx)
 
     constructor(ctx: Context, attrs: AttributeSet) : super(ctx, attrs)
 
+    init {
+        touchSlop = ViewConfiguration.get(context).scaledTouchSlop
+        gestureDetector = ImageGestureDetector(context)
+        gestureDetector.setListener(this)
+        setOnTouchListener(this)
+    }
+
     private var transX: Float = 0.0f
     private var transY: Float = 0.0f
     private var scale: Float = 1.0f
+    private var minScale: Float = 1.0f
+    private val maxScale: Float = 4.0f
     private var loader: BitmapLoader? = null
     private var loaderThread: HandlerThread? = null
     private var loaderHandler: LoaderHandler? = null
@@ -34,7 +45,11 @@ class LargeImageView : View, CellLoaderInterface {
     private val MSG_LOAD_CELL = 2
     private val MSG_INIT_CELL = 3
 
+    private var touchSlop: Int = 0
+
     private var inputStream: InputStream? = null
+
+    private val gestureDetector: ImageGestureDetector
 
     private class LoaderHandler(myLooper: Looper,
                                 val img: LargeImageView) : Handler(myLooper) {
@@ -45,31 +60,46 @@ class LargeImageView : View, CellLoaderInterface {
                 }
 
                 img.MSG_LOAD_CELL -> {
-                    img.loader?.loadCells(img.displayRect, img.scale, img.transX, img.transY)
+                    img.updateDisplayRect()
+                    img.loader?.loadCells(img.displayRect, img.scale)
                 }
 
                 img.MSG_INIT_CELL -> {
                     // center inside the image
                     if (img.loader != null) {
-                        val bitmapWidth = img.loader!!.getWidth()
-                        val bitmapHeight = img.loader!!.getHeight()
+                        img.updateInitFactor()
 
-                        img.scale = Math.min(img.displayRect.width().toFloat() / bitmapWidth.toFloat(),
-                                img.displayRect.height().toFloat() / bitmapHeight.toFloat())
-                        img.transX = (bitmapWidth * img.scale - img.displayRect.width()) / 2
-                        img.transY = (bitmapHeight * img.scale - img.displayRect.height()) / 2
-
-                        img.loader?.loadCells(img.displayRect, img.scale, img.transX, img.transY)
+                        img.updateDisplayRect()
+                        img.loader!!.loadCells(img.displayRect, img.scale)
                     }
                 }
             }
         }
     }
 
-    override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
-        super.onSizeChanged(w, h, oldw, oldh)
-        displayRect.right = w
-        displayRect.bottom = h
+    private fun updateDisplayRect() {
+        getDrawingRect(displayRect)
+        displayRect.offset(-transX.toInt(), -transY.toInt())
+
+        val displayWidth = displayRect.width() / scale
+        val displayHeight = displayRect.height() / scale
+        with(displayRect) {
+            left = (left / scale - displayWidth / 2).toInt()
+            top = (top / scale - displayHeight / 2).toInt()
+            right = (right / scale + displayWidth / 2).toInt()
+            bottom = (bottom / scale + displayHeight / 2).toInt()
+        }
+    }
+
+    private fun updateInitFactor() {
+        val bitmapWidth = loader!!.getWidth()
+        val bitmapHeight = loader!!.getHeight()
+
+        scale = Math.min(width.toFloat() / bitmapWidth.toFloat(),
+                height.toFloat() / bitmapHeight.toFloat())
+        minScale = scale
+        transX = (width - bitmapWidth * scale) / 2
+        transY = (height - bitmapHeight * scale) / 2
     }
 
     override fun onDraw(canvas: Canvas?) {
@@ -77,7 +107,7 @@ class LargeImageView : View, CellLoaderInterface {
         canvas?.save()
         val scaleSampleSize = getSampleSize(scale)
 
-        canvas?.translate(-transX, -transY)
+        canvas?.translate(transX, transY)
         canvas?.scale(scale * scaleSampleSize, scale * scaleSampleSize)
         loader?.getCells()?.forEach {
             if (it.bitmap != null) {
@@ -93,27 +123,53 @@ class LargeImageView : View, CellLoaderInterface {
         canvas?.restore()
     }
 
-    fun setTransXY(x: Int, y: Int) {
-        transX += x
-        transY += y
-        sendMessage(MSG_LOAD_CELL)
-        invalidate()
-    }
+    private fun setTransXY(x: Float, y: Float) {
+        if (loader != null && loader!!.isInitied()) {
+            getDrawingRect(displayRect)
 
-    fun setScale(scale: Float) {
-        this.scale += scale
-        if (this.scale < 0.2) {
-            this.scale = 0.2f
-        } else if (this.scale > 4) {
-            this.scale = 4.0f
+            val bitmapWidth = loader!!.getWidth() * scale
+            val bitmapHeight = loader!!.getHeight() * scale
+            var tempX = transX
+            var tempY = transY
+
+            if (displayRect.width() >= bitmapWidth && displayRect.height() >= bitmapHeight) {
+                tempX = (width - bitmapWidth) / 2
+                tempY = (height - bitmapHeight) / 2
+            } else {
+                tempX += x
+                tempY += y
+
+                val minTransX = displayRect.width() - bitmapWidth
+                val minTransY = displayRect.height() - bitmapHeight
+                tempX = Math.min(0.0f, Math.max(tempX, minTransX))
+                tempY = Math.min(0.0f, Math.max(tempY, minTransY))
+            }
+
+            if (tempX != transX || tempY != transY) {
+                transX = tempX
+                transY = tempY
+                sendMessage(MSG_LOAD_CELL)
+                invalidate()
+            }
         }
-        transX = 0.0f
-        transY = 0.0f
-        sendMessage(MSG_LOAD_CELL)
-        invalidate()
     }
 
-    fun getScale(): Float {
+    private fun setScale(scale: Float) {
+        if (loader != null && loader!!.isInitied()) {
+            var tempScale = this.scale
+
+            tempScale *= scale
+            tempScale = Math.max(minScale, Math.min(tempScale, maxScale))
+
+            if (tempScale != this.scale) {
+                this.scale = tempScale
+                sendMessage(MSG_LOAD_CELL)
+                invalidate()
+            }
+        }
+    }
+
+    private fun getScale(): Float {
         return scale
     }
 
@@ -149,10 +205,27 @@ class LargeImageView : View, CellLoaderInterface {
     }
 
     override fun cellLoaded(cell: Cell) {
-        var left = cell.region.left * scale + transX
-        var top = cell.region.top * scale + transY
-        var right = cell.region.right * scale + transX
-        var bottom = cell.region.bottom * scale + transY
+        var left = (cell.region.left) * scale + transX
+        var top = (cell.region.top) * scale + transY
+        var right = (cell.region.right) * scale + transX
+        var bottom = (cell.region.bottom) * scale + + transY
+        Log.d("www1", "$left, $top, $right, $bottom, cell=${cell.region}, ${cell.inSampleSize}, $scale")
         postInvalidate(left.toInt(), top.toInt(), right.toInt(), bottom.toInt())
+    }
+
+    override fun onDrag(dx: Float, dy: Float) {
+        setTransXY(dx, dy)
+    }
+
+    override fun onFling(startX: Float, startY: Float, velocityX: Float, velocityY: Float) {
+
+    }
+
+    override fun onScale(scaleFactor: Float, focusX: Float, focusY: Float) {
+        setScale(scaleFactor)
+    }
+
+    override fun onTouch(v: View?, event: MotionEvent?): Boolean {
+        return if (event != null) gestureDetector.onTouchEvent(event!!) else false
     }
 }

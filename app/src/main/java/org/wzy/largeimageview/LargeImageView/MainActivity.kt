@@ -43,30 +43,30 @@ class MainActivity : AppCompatActivity() {
         zoom_in = findViewById(R.id.zoom_in) as Button
         zoom_out = findViewById(R.id.zoom_out) as Button
 
-        img?.setImage(assets.open("111.jpg"))
+        img?.setImage(assets.open("aaa.jpg"))
 
-        left?.setOnClickListener {
-            img?.setTransXY(-100, 0)
-        }
-
-        right?.setOnClickListener {
-            img?.setTransXY(100, 0)
-        }
-
-        top?.setOnClickListener {
-            img?.setTransXY(0, 100)
-        }
-
-        bottom?.setOnClickListener {
-            img?.setTransXY(0, -100)
-        }
-
-        zoom_in?.setOnClickListener {
-            img?.setScale(0.2f)
-        }
-
-        zoom_out?.setOnClickListener {
-            img?.setScale(-0.2f)
-        }
+//        left?.setOnClickListener {
+//            img?.setTransXY(-100, 0)
+//        }
+//
+//        right?.setOnClickListener {
+//            img?.setTransXY(100, 0)
+//        }
+//
+//        top?.setOnClickListener {
+//            img?.setTransXY(0, 100)
+//        }
+//
+//        bottom?.setOnClickListener {
+//            img?.setTransXY(0, -100)
+//        }
+//
+//        zoom_in?.setOnClickListener {
+//            img?.setScale(0.2f)
+//        }
+//
+//        zoom_out?.setOnClickListener {
+//            img?.setScale(-0.2f)
+//        }
     }
 }

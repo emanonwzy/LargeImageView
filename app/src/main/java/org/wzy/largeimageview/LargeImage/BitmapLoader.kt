@@ -1,9 +1,6 @@
 package org.wzy.largeimageview.LargeImage
 
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.BitmapRegionDecoder
-import android.graphics.Rect
+import android.graphics.*
 import android.util.Log
 import java.io.InputStream
 import java.util.concurrent.CopyOnWriteArrayList
@@ -21,6 +18,7 @@ class BitmapLoader(val cellWidth: Int,
     private var width: Int = 0
     private var height: Int = 0
     private var decoder: BitmapRegionDecoder? = null
+    private val rect: Rect = Rect()
 
     fun setBitmap(input: InputStream?) {
         if (input != null) {
@@ -39,20 +37,15 @@ class BitmapLoader(val cellWidth: Int,
         loaderInterface = loader
     }
 
-    fun loadCells(displayRect: Rect, scale: Float, transX: Float, transY: Float) {
+    fun loadCells(displayRect: Rect, scale: Float) {
         if (decoder == null) return
 
-        val displayWidth = displayRect.width() / scale
-        val displayHeight = displayRect.height() / scale
-        val deltaX = transX / scale
-        val deltaY = transY /scale
-
-        var rect = Rect( (displayRect.left + deltaX).toInt(),
-                (displayRect.top + deltaY).toInt(),
-                (displayRect.left + deltaX + displayWidth).toInt(),
-                (displayRect.top + deltaY + displayHeight).toInt() )
-        rect.inset((-displayWidth / 2).toInt(), (- displayHeight / 2).toInt())
-
+         with(rect) {
+             left = displayRect.left
+             top = displayRect.top
+             right = displayRect.right
+             bottom = displayRect.bottom
+         }
         if (!rect.intersect(0, 0, width, height))
             return
 
@@ -98,6 +91,7 @@ class BitmapLoader(val cellWidth: Int,
         if (recycleCells != null) {
             cells?.removeAll(recycleCells)
             recycleCells.forEach {
+                Log.d("www", "recycle cell, rect=${it.region}")
                 it.bitmap?.recycle()
                 it.bitmap = null
             }
@@ -120,4 +114,5 @@ class BitmapLoader(val cellWidth: Int,
 
     fun getWidth() = width
     fun getHeight() = height
+    fun isInitied() = width > 0 && height > 0
 }
