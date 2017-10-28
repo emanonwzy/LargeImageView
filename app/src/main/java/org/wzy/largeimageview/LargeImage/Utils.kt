@@ -1,6 +1,6 @@
 package org.wzy.largeimageview.LargeImage
 
-import android.graphics.RectF
+import android.graphics.Rect
 
 /**
  * Created by zeyiwu on 21/10/2017.
@@ -34,14 +34,20 @@ fun bitmapPointToScreenPoint(x: Float, y: Float, scale: Float,
     return Pair(x * scale + transX, y * scale + transY)
 }
 
-fun hitTestInBitmap(x: Float, y: Float, width: Int, height: Int): Boolean {
-    return x > 0 && x < width && y > 0 && y < height
+fun getBitampRectFromDisplayRect(displayRect: Rect, bitmapRectF: Rect, scale: Float) {
+    with(displayRect) {
+        bitmapRectF.left = (left.toFloat() / scale).toInt()
+        bitmapRectF.top = (top.toFloat() / scale).toInt()
+        bitmapRectF.right = (right.toFloat() / scale).toInt()
+        bitmapRectF.bottom = (bottom.toFloat() / scale).toInt()
+    }
 }
 
-fun getBitmapDisplayRect(width: Int, height: Int, scale: Float,
-                         transX: Float, transY: Float, rectF: RectF) {
-    rectF.left = transX
-    rectF.top = transY
-    rectF.right = width * scale + transX
-    rectF.bottom = height * scale + transY
+fun getDisplayRectFromBitmapRect(bitmapRect: Rect, displayRect: Rect, scale: Float) {
+    with(bitmapRect) {
+        displayRect.left = (left.toFloat() * scale).toInt()
+        displayRect.top = (top.toFloat() * scale).toInt()
+        displayRect.right = (right.toFloat() * scale).toInt()
+        displayRect.bottom = (bottom.toFloat() * scale).toInt()
+    }
 }

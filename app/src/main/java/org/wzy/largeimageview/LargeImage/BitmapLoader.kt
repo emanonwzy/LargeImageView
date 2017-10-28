@@ -12,6 +12,7 @@ import java.util.concurrent.CopyOnWriteArrayList
 class BitmapLoader(val cellWidth: Int,
                    val cellHeight: Int) {
 
+    private var initCell: Cell? = null
     private var cells: CopyOnWriteArrayList<Cell>? = null
     private var loaderInterface: CellLoaderInterface? = null
 
@@ -20,16 +21,27 @@ class BitmapLoader(val cellWidth: Int,
     private var decoder: BitmapRegionDecoder? = null
     private val rect: Rect = Rect()
 
-    fun setBitmap(input: InputStream?) {
+    fun setBitmap(input: InputStream?, screenWidth: Int , screenHeight: Int) {
         if (input != null) {
             val options = BitmapFactory.Options()
             options.inJustDecodeBounds = true
             BitmapFactory.decodeStream(input, null, options)
 
-            width = options.outWidth
-            height = options.outHeight
+            val tempwidth = options.outWidth
+            val tempheight = options.outHeight
 
-            decoder = BitmapRegionDecoder.newInstance(input, false)
+            val scale = Math.min(screenWidth.toFloat() / tempwidth.toFloat(),
+                    screenHeight.toFloat() / tempheight.toFloat())
+            input.reset()
+            options.inJustDecodeBounds = false
+            options.inSampleSize = getSampleSize(scale)
+            val bitmap = BitmapFactory.decodeStream(input, null, options)
+            if (bitmap != null) {
+                width = tempwidth
+                height = tempheight
+                initCell = Cell(bitmap, Rect(0, 0, width, height), options.inSampleSize)
+                decoder = BitmapRegionDecoder.newInstance(input, false)
+            }
         }
     }
 
@@ -72,6 +84,12 @@ class BitmapLoader(val cellWidth: Int,
                     var cell = cells?.find {
                         it.region == cellRegion && it.inSampleSize == sampleSize
                     }
+
+                    if (cell == null) {
+                        if (initCell?.region == cellRegion && initCell?.inSampleSize == sampleSize) {
+                            cell = initCell
+                        }
+                    }
                     if (cell == null) {
                         cell = Cell(decoder?.decodeRegion(cellRegion, options), cellRegion, sampleSize)
 
@@ -100,6 +118,10 @@ class BitmapLoader(val cellWidth: Int,
 
     fun getCells(): CopyOnWriteArrayList<Cell>? {
         return cells
+    }
+
+    fun getInitCell(): Cell? {
+        return initCell
     }
 
     fun stop() {

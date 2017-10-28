@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.support.v7.app.AppCompatActivity
 import android.view.View
 import android.view.ViewTreeObserver
+import android.widget.Button
 import org.wzy.largeimageview.LargeImage.LargeImageView
 import org.wzy.largeimageview.R
 
@@ -36,5 +37,10 @@ class MainActivity : AppCompatActivity() {
         img = findViewById(R.id.img) as LargeImageView
 
         img?.setImage(assets.open("aaa.jpg"))
+
+        val button = findViewById(R.id.change) as Button
+        button.setOnClickListener {
+            img?.setImage(assets.open("111.jpg"))
+        }
     }
 }
