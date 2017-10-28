@@ -192,9 +192,9 @@ class LargeImageView : View, CellLoaderInterface, OnGestureListener, View.OnTouc
         loaderHandler = LoaderHandler(loaderThread!!.looper, this)
     }
 
-    private fun sendMessage(msg: Int) {
+    private fun sendMessage(what: Int) {
         if (loaderHandler != null) {
-            val msg = Message.obtain(loaderHandler, msg)
+            val msg = Message.obtain(loaderHandler, what)
             msg.sendToTarget()
         }
     }
@@ -226,6 +226,6 @@ class LargeImageView : View, CellLoaderInterface, OnGestureListener, View.OnTouc
     }
 
     override fun onTouch(v: View?, event: MotionEvent?): Boolean {
-        return if (event != null) gestureDetector.onTouchEvent(event!!) else false
+        return if (event != null) gestureDetector.onTouchEvent(event) else false
     }
 }
