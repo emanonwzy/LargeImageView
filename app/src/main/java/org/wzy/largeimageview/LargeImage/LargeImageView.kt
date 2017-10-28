@@ -8,7 +8,6 @@ import android.os.HandlerThread
 import android.os.Looper
 import android.os.Message
 import android.util.AttributeSet
-import android.util.Log
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
@@ -39,7 +38,7 @@ class LargeImageView : View, CellLoaderInterface, OnGestureListener, View.OnTouc
     private var loaderHandler: LoaderHandler? = null
 
     private val displayRect: Rect = Rect()
-    private val bitmapRect: Rect = Rect()
+    private val cellDrawRect: Rect = Rect()
 
     private val MSG_SET_IMAGE = 1
     private val MSG_LOAD_CELL = 2
@@ -112,36 +111,37 @@ class LargeImageView : View, CellLoaderInterface, OnGestureListener, View.OnTouc
         loader?.getCells()?.forEach {
             if (it.bitmap != null) {
                 with(it.region) {
-                    bitmapRect.left = left / scaleSampleSize
-                    bitmapRect.right = right / scaleSampleSize
-                    bitmapRect.top = top / scaleSampleSize
-                    bitmapRect.bottom = bottom / scaleSampleSize
+                    cellDrawRect.left = left / scaleSampleSize
+                    cellDrawRect.right = right / scaleSampleSize
+                    cellDrawRect.top = top / scaleSampleSize
+                    cellDrawRect.bottom = bottom / scaleSampleSize
                 }
-                canvas?.drawBitmap(it.bitmap, null, bitmapRect, null)
+                canvas?.drawBitmap(it.bitmap, null, cellDrawRect, null)
             }
         }
         canvas?.restore()
     }
 
-    private fun setTransXY(x: Float, y: Float) {
+    private fun setTransXY(x: Float, y: Float): Boolean {
         if (loader != null && loader!!.isInitied()) {
-            getDrawingRect(displayRect)
-
             val bitmapWidth = loader!!.getWidth() * scale
             val bitmapHeight = loader!!.getHeight() * scale
             var tempX = transX
             var tempY = transY
 
-            if (displayRect.width() >= bitmapWidth && displayRect.height() >= bitmapHeight) {
+            if (width >= bitmapWidth) {
                 tempX = (width - bitmapWidth) / 2
-                tempY = (height - bitmapHeight) / 2
             } else {
                 tempX += x
-                tempY += y
-
-                val minTransX = displayRect.width() - bitmapWidth
-                val minTransY = displayRect.height() - bitmapHeight
+                val minTransX = width - bitmapWidth
                 tempX = Math.min(0.0f, Math.max(tempX, minTransX))
+            }
+
+            if (height >= bitmapHeight) {
+                tempY = (height - bitmapHeight) / 2
+            } else {
+                tempY += y
+                val minTransY = displayRect.height() - bitmapHeight
                 tempY = Math.min(0.0f, Math.max(tempY, minTransY))
             }
 
@@ -150,23 +150,36 @@ class LargeImageView : View, CellLoaderInterface, OnGestureListener, View.OnTouc
                 transY = tempY
                 sendMessage(MSG_LOAD_CELL)
                 invalidate()
+                return true
             }
         }
+        return false
     }
 
-    private fun setScale(scale: Float) {
+    private fun setScale(newScale: Float, focusX: Float, focusY: Float): Boolean {
         if (loader != null && loader!!.isInitied()) {
-            var tempScale = this.scale
+            var tempScale = scale
 
-            tempScale *= scale
+            tempScale *= newScale
             tempScale = Math.max(minScale, Math.min(tempScale, maxScale))
 
+            val (bitmapX, bitmapY) = screenPointToBitmapPoint(focusX, focusY,
+                    scale, transX, transY)
             if (tempScale != this.scale) {
                 this.scale = tempScale
+                val (newFocusX, newFocusY) = bitmapPointToScreenPoint(bitmapX, bitmapY,
+                        tempScale, transX, transY)
+
+                if (!setTransXY(focusX - newFocusX, focusY - newFocusY)) {
+                    sendMessage(MSG_LOAD_CELL)
+                    invalidate()
+                }
                 sendMessage(MSG_LOAD_CELL)
                 invalidate()
+                return true
             }
         }
+        return false
     }
 
     private fun getScale(): Float {
@@ -205,11 +218,13 @@ class LargeImageView : View, CellLoaderInterface, OnGestureListener, View.OnTouc
     }
 
     override fun cellLoaded(cell: Cell) {
-        var left = (cell.region.left) * scale + transX
-        var top = (cell.region.top) * scale + transY
-        var right = (cell.region.right) * scale + transX
-        var bottom = (cell.region.bottom) * scale + + transY
-        Log.d("www1", "$left, $top, $right, $bottom, cell=${cell.region}, ${cell.inSampleSize}, $scale")
+        val (left, top) = bitmapPointToScreenPoint(cell.region.left.toFloat(),
+                cell.region.top.toFloat(),
+                scale, transX, transY)
+
+        val (right, bottom) = bitmapPointToScreenPoint(cell.region.right.toFloat(),
+                cell.region.bottom.toFloat(),
+                scale, transX, transY)
         postInvalidate(left.toInt(), top.toInt(), right.toInt(), bottom.toInt())
     }
 
@@ -222,7 +237,7 @@ class LargeImageView : View, CellLoaderInterface, OnGestureListener, View.OnTouc
     }
 
     override fun onScale(scaleFactor: Float, focusX: Float, focusY: Float) {
-        setScale(scaleFactor)
+        setScale(scaleFactor, focusX, focusY)
     }
 
     override fun onTouch(v: View?, event: MotionEvent?): Boolean {
