@@ -23,6 +23,8 @@ class LargeImageView : View, CellLoaderInterface {
         touchSlop = ViewConfiguration.get(context).scaledTouchSlop
         scaleGestureDetector = ScaleGestureDetector(context, ScaleListener())
         simpleGestureDetector = GestureDetector(context, GestureListener())
+
+        minTouchSize = dipToPx(context, 32)
     }
 
     private var transX: Float = 0.0f
@@ -30,6 +32,7 @@ class LargeImageView : View, CellLoaderInterface {
     private var scale: Float = 1.0f
     private var minScale: Float = 1.0f
     private val maxScale: Float = 4.0f
+    private val minTouchSize: Float
     private var loader: BitmapLoader? = null
     private var loaderThread: HandlerThread? = null
     private var loaderHandler: LoaderHandler? = null
@@ -161,64 +164,62 @@ class LargeImageView : View, CellLoaderInterface {
     }
 
     private fun setTransXY(x: Float, y: Float): Boolean {
-        if (loader != null && loader!!.isInitied()) {
-            val bitmapWidth = loader!!.getWidth() * scale
-            val bitmapHeight = loader!!.getHeight() * scale
-            var tempX = transX
-            var tempY = transY
 
-            if (width >= bitmapWidth) {
-                tempX = (width - bitmapWidth) / 2
-            } else {
-                tempX += x
-                val minTransX = width - bitmapWidth
-                tempX = Math.min(0.0f, Math.max(tempX, minTransX))
-            }
+        val bitmapWidth = loader!!.getWidth() * scale
+        val bitmapHeight = loader!!.getHeight() * scale
+        var tempX = transX
+        var tempY = transY
 
-            if (height >= bitmapHeight) {
-                tempY = (height - bitmapHeight) / 2
-            } else {
-                tempY += y
-                val minTransY = height - bitmapHeight
-                tempY = Math.min(0.0f, Math.max(tempY, minTransY))
-            }
+        if (width >= bitmapWidth) {
+            tempX = (width - bitmapWidth) / 2
+        } else {
+            tempX += x
+            val minTransX = width - bitmapWidth
+            tempX = Math.min(0.0f, Math.max(tempX, minTransX))
+        }
 
-            if (tempX != transX || tempY != transY) {
-                transX = tempX
-                transY = tempY
-                sendMessage(MSG_LOAD_CELL)
-                invalidate()
-                return true
-            }
+        if (height >= bitmapHeight) {
+            tempY = (height - bitmapHeight) / 2
+        } else {
+            tempY += y
+            val minTransY = height - bitmapHeight
+            tempY = Math.min(0.0f, Math.max(tempY, minTransY))
+        }
+
+        if (tempX != transX || tempY != transY) {
+            transX = tempX
+            transY = tempY
+            sendMessage(MSG_LOAD_CELL)
+            invalidate()
+            return true
         }
         return false
     }
 
     private fun setScale(newScale: Float, focusX: Float, focusY: Float): Boolean {
-        if (loader != null && loader!!.isInitied()) {
-            var tempScale = scale
-            tempScale *= newScale
 
-            if (tempScale > maxScale && scale == maxScale) {
-                tempScale = minScale
-            } else {
-                tempScale = Math.max(minScale, Math.min(tempScale, maxScale))
+        var tempScale = scale
+        tempScale *= newScale
+
+        if (tempScale > maxScale && scale == maxScale) {
+            tempScale = minScale
+        } else {
+            tempScale = Math.max(minScale, Math.min(tempScale, maxScale))
+        }
+
+        val (bitmapX, bitmapY) = screenPointToBitmapPoint(focusX, focusY,
+                scale, transX, transY)
+
+        if (tempScale != this.scale) {
+            this.scale = tempScale
+            val (newFocusX, newFocusY) = bitmapPointToScreenPoint(bitmapX, bitmapY,
+                    tempScale, transX, transY)
+
+            if (!setTransXY(focusX - newFocusX, focusY - newFocusY)) {
+                sendMessage(MSG_LOAD_CELL)
+                invalidate()
             }
-
-            val (bitmapX, bitmapY) = screenPointToBitmapPoint(focusX, focusY,
-                    scale, transX, transY)
-
-            if (tempScale != this.scale) {
-                this.scale = tempScale
-                val (newFocusX, newFocusY) = bitmapPointToScreenPoint(bitmapX, bitmapY,
-                        tempScale, transX, transY)
-
-                if (!setTransXY(focusX - newFocusX, focusY - newFocusY)) {
-                    sendMessage(MSG_LOAD_CELL)
-                    invalidate()
-                }
-                return true
-            }
+            return true
         }
         return false
     }
@@ -279,20 +280,43 @@ class LargeImageView : View, CellLoaderInterface {
             if (java.lang.Float.isNaN(detector.scaleFactor)
                     || java.lang.Float.isInfinite(detector.scaleFactor)) return false
 
-            setScale(detector.scaleFactor, detector.focusX, detector.focusY)
-            return true
+            when (hitTest(detector.focusX, detector.focusY)) {
+                true -> {
+                    setScale(detector.scaleFactor, detector.focusX, detector.focusY)
+                    return true
+                }
+                false -> return false
+            }
         }
     }
 
     inner class GestureListener: GestureDetector.SimpleOnGestureListener() {
         override fun onDoubleTap(e: MotionEvent): Boolean {
-            setScale(2f, e.x, e.y)
-            return true
+            if (hitTest(e.x, e.y)) {
+                setScale(2f, e.x, e.y)
+                return true
+            } else {
+                return false
+            }
         }
 
         override fun onScroll(e1: MotionEvent, e2: MotionEvent, distanceX: Float, distanceY: Float): Boolean {
-            setTransXY(-distanceX, -distanceY)
-            return true
+            if (hitTest(e1.x, e2.y)) {
+                setTransXY(-distanceX, -distanceY)
+                return true
+            } else {
+                return false
+            }
         }
+    }
+
+    private fun hitTest(x: Float, y: Float): Boolean {
+        return loader != null
+                && loader!!.isInitied()
+                && hitTest(x, y,
+                loader!!.getWidth(),
+                loader!!.getHeight(),
+                scale, transX, transY,
+                minTouchSize)
     }
 }

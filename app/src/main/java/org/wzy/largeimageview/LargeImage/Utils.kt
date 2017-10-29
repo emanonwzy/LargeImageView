@@ -1,6 +1,9 @@
 package org.wzy.largeimageview.LargeImage
 
+import android.content.Context
 import android.graphics.Rect
+import android.util.DisplayMetrics
+import android.view.WindowManager
 
 /**
  * Created by zeyiwu on 21/10/2017.
@@ -50,4 +53,33 @@ fun getDisplayRectFromBitmapRect(bitmapRect: Rect, displayRect: Rect, scale: Flo
         displayRect.right = (right.toFloat() * scale).toInt()
         displayRect.bottom = (bottom.toFloat() * scale).toInt()
     }
+}
+
+fun hitTest(screenX: Float, screenY: Float, bitmapWidth: Int, bitmapHeight: Int,
+            scale: Float, transX: Float, transY: Float,
+            minTouchSize: Float): Boolean {
+    var (left, top) = bitmapPointToScreenPoint(0f, 0f, scale, transX, transY)
+    var (right, bottom) = bitmapPointToScreenPoint(bitmapWidth.toFloat(), bitmapHeight.toFloat(),
+            scale, transX, transY)
+
+    if (right - left < minTouchSize) {
+        left -= minTouchSize / 2
+        right += minTouchSize / 2
+    }
+
+    if (bottom - top < minTouchSize) {
+        top -= minTouchSize / 2
+        bottom += minTouchSize / 2
+    }
+
+    return screenX > left && screenX < right && screenY > top && screenY < bottom
+}
+
+fun dipToPx(ctx: Context, dp: Int): Float {
+    val metrics = DisplayMetrics()
+    val manager = ctx.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+
+    manager.defaultDisplay.getMetrics(metrics)
+
+    return dp * metrics.density
 }
