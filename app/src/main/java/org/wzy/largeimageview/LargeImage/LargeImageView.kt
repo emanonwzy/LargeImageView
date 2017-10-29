@@ -7,8 +7,11 @@ import android.os.Handler
 import android.os.HandlerThread
 import android.os.Looper
 import android.os.Message
+import android.support.v4.view.ViewCompat
 import android.util.AttributeSet
+import android.util.Log
 import android.view.*
+import android.widget.OverScroller
 import java.io.InputStream
 
 /**
@@ -23,6 +26,7 @@ class LargeImageView : View, CellLoaderInterface {
         touchSlop = ViewConfiguration.get(context).scaledTouchSlop
         scaleGestureDetector = ScaleGestureDetector(context, ScaleListener())
         simpleGestureDetector = GestureDetector(context, GestureListener())
+        scroller = OverScroller(context)
 
         minTouchSize = dipToPx(context, 32)
     }
@@ -36,6 +40,7 @@ class LargeImageView : View, CellLoaderInterface {
     private var loader: BitmapLoader? = null
     private var loaderThread: HandlerThread? = null
     private var loaderHandler: LoaderHandler? = null
+    private val scroller: OverScroller
 
     private val displayRect: Rect = Rect()
     private val cellDrawRect: Rect = Rect()
@@ -164,7 +169,6 @@ class LargeImageView : View, CellLoaderInterface {
     }
 
     private fun setTransXY(x: Float, y: Float): Boolean {
-
         val bitmapWidth = loader!!.getWidth() * scale
         val bitmapHeight = loader!!.getHeight() * scale
         var tempX = transX
@@ -197,20 +201,14 @@ class LargeImageView : View, CellLoaderInterface {
     }
 
     private fun setScale(newScale: Float, focusX: Float, focusY: Float): Boolean {
-
         var tempScale = scale
         tempScale *= newScale
-
-        if (tempScale > maxScale && scale == maxScale) {
-            tempScale = minScale
-        } else {
-            tempScale = Math.max(minScale, Math.min(tempScale, maxScale))
-        }
-
-        val (bitmapX, bitmapY) = screenPointToBitmapPoint(focusX, focusY,
-                scale, transX, transY)
+        tempScale = Math.max(minScale, Math.min(tempScale, maxScale))
 
         if (tempScale != this.scale) {
+            val (bitmapX, bitmapY) = screenPointToBitmapPoint(focusX, focusY,
+                    scale, transX, transY)
+
             this.scale = tempScale
             val (newFocusX, newFocusY) = bitmapPointToScreenPoint(bitmapX, bitmapY,
                     tempScale, transX, transY)
@@ -280,34 +278,74 @@ class LargeImageView : View, CellLoaderInterface {
             if (java.lang.Float.isNaN(detector.scaleFactor)
                     || java.lang.Float.isInfinite(detector.scaleFactor)) return false
 
-            when (hitTest(detector.focusX, detector.focusY)) {
-                true -> {
-                    setScale(detector.scaleFactor, detector.focusX, detector.focusY)
-                    return true
-                }
-                false -> return false
+            if (hitTest(detector.focusX, detector.focusY)) {
+                setScale(detector.scaleFactor, detector.focusX, detector.focusY)
+                return true
             }
+            return false
         }
     }
 
     inner class GestureListener: GestureDetector.SimpleOnGestureListener() {
+
+        override fun onDown(e: MotionEvent?): Boolean {
+            scroller.forceFinished(true)
+            return true
+        }
+
         override fun onDoubleTap(e: MotionEvent): Boolean {
             if (hitTest(e.x, e.y)) {
-                setScale(2f, e.x, e.y)
+                var doubalScale = 2f
+
+                if (scale * doubalScale > maxScale && scale == maxScale) {
+                    doubalScale = minScale / scale
+                }
+                setScale(doubalScale, e.x, e.y)
                 return true
-            } else {
-                return false
             }
+            return false
         }
 
         override fun onScroll(e1: MotionEvent, e2: MotionEvent, distanceX: Float, distanceY: Float): Boolean {
             if (hitTest(e1.x, e2.y)) {
                 setTransXY(-distanceX, -distanceY)
                 return true
-            } else {
-                return false
             }
+            return false
         }
+
+        override fun onFling(e1: MotionEvent, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
+            if (hitTest(e1.x, e1.y)) {
+                flingStartX = e1.x.toInt()
+                flingStartY = e1.y.toInt()
+                return fling(flingStartX, flingStartY, -velocityX.toInt(), -velocityY.toInt())
+            }
+            return false
+        }
+    }
+
+    private var flingStartX: Int = 0
+    private var flingStartY: Int = 0
+
+    private fun fling(
+            startX: Int,
+            startY: Int,
+            velocityX: Int,
+            velocityY: Int): Boolean {
+        val (left, top) = bitmapPointToScreenPoint(0f, 0f, scale, transX, transY)
+        val (right, bottom) = bitmapPointToScreenPoint(loader!!.getWidth().toFloat(),
+                loader!!.getHeight().toFloat(), scale, transX, transY)
+
+        scroller.forceFinished(true)
+
+        scroller.fling(startX,
+                startY,
+                velocityX,
+                velocityY,
+                left.toInt(), right.toInt(),
+                top.toInt(), bottom.toInt())
+        ViewCompat.postInvalidateOnAnimation(this);
+        return true
     }
 
     private fun hitTest(x: Float, y: Float): Boolean {
@@ -318,5 +356,21 @@ class LargeImageView : View, CellLoaderInterface {
                 loader!!.getHeight(),
                 scale, transX, transY,
                 minTouchSize)
+    }
+
+    override fun computeScroll() {
+        super.computeScroll()
+
+        var needsInvalidate = false
+
+        if (scroller.computeScrollOffset()) {
+            val currX = scroller.currX
+            val currY = scroller.currY
+            setTransXY((flingStartX - currX).toFloat(), (flingStartY - currY).toFloat())
+            flingStartX = currX
+            flingStartY = currY
+        }
+
+        if (needsInvalidate) ViewCompat.postInvalidateOnAnimation(this)
     }
 }
