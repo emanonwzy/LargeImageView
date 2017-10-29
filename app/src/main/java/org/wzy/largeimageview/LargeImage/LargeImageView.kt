@@ -8,24 +8,21 @@ import android.os.HandlerThread
 import android.os.Looper
 import android.os.Message
 import android.util.AttributeSet
-import android.view.MotionEvent
-import android.view.View
-import android.view.ViewConfiguration
+import android.view.*
 import java.io.InputStream
 
 /**
  * Created by zeyiwu on 26/08/2017.
  */
-class LargeImageView : View, CellLoaderInterface, OnGestureListener, View.OnTouchListener {
+class LargeImageView : View, CellLoaderInterface {
     constructor(ctx: Context) : super(ctx)
 
     constructor(ctx: Context, attrs: AttributeSet) : super(ctx, attrs)
 
     init {
         touchSlop = ViewConfiguration.get(context).scaledTouchSlop
-        gestureDetector = ImageGestureDetector(context)
-        gestureDetector.setListener(this)
-        setOnTouchListener(this)
+        scaleGestureDetector = ScaleGestureDetector(context, ScaleListener())
+        simpleGestureDetector = GestureDetector(context, GestureListener())
     }
 
     private var transX: Float = 0.0f
@@ -39,8 +36,6 @@ class LargeImageView : View, CellLoaderInterface, OnGestureListener, View.OnTouc
 
     private val displayRect: Rect = Rect()
     private val cellDrawRect: Rect = Rect()
-//    private val backgroundDrawRect: Rect = Rect()
-//    private val backgroundRect: Rect = Rect()
 
     private val MSG_SET_IMAGE = 1
     private val MSG_LOAD_CELL = 2
@@ -49,7 +44,8 @@ class LargeImageView : View, CellLoaderInterface, OnGestureListener, View.OnTouc
 
     private var inputStream: InputStream? = null
 
-    private val gestureDetector: ImageGestureDetector
+    private val scaleGestureDetector: ScaleGestureDetector
+    private val simpleGestureDetector: GestureDetector
 
     private class LoaderHandler(myLooper: Looper,
                                 val img: LargeImageView) : Handler(myLooper) {
@@ -201,12 +197,17 @@ class LargeImageView : View, CellLoaderInterface, OnGestureListener, View.OnTouc
     private fun setScale(newScale: Float, focusX: Float, focusY: Float): Boolean {
         if (loader != null && loader!!.isInitied()) {
             var tempScale = scale
-
             tempScale *= newScale
-            tempScale = Math.max(minScale, Math.min(tempScale, maxScale))
+
+            if (tempScale > maxScale && scale == maxScale) {
+                tempScale = minScale
+            } else {
+                tempScale = Math.max(minScale, Math.min(tempScale, maxScale))
+            }
 
             val (bitmapX, bitmapY) = screenPointToBitmapPoint(focusX, focusY,
                     scale, transX, transY)
+
             if (tempScale != this.scale) {
                 this.scale = tempScale
                 val (newFocusX, newFocusY) = bitmapPointToScreenPoint(bitmapX, bitmapY,
@@ -267,19 +268,31 @@ class LargeImageView : View, CellLoaderInterface, OnGestureListener, View.OnTouc
         postInvalidate(left.toInt(), top.toInt(), right.toInt(), bottom.toInt())
     }
 
-    override fun onDrag(dx: Float, dy: Float) {
-        setTransXY(dx, dy)
+    override fun onTouchEvent(event: MotionEvent?): Boolean {
+        var retVal = scaleGestureDetector.onTouchEvent(event)
+        retVal = simpleGestureDetector.onTouchEvent(event) || retVal
+        return retVal || super.onTouchEvent(event)
     }
 
-    override fun onFling(startX: Float, startY: Float, velocityX: Float, velocityY: Float) {
+    inner class ScaleListener: ScaleGestureDetector.SimpleOnScaleGestureListener() {
+        override fun onScale(detector: ScaleGestureDetector): Boolean {
+            if (java.lang.Float.isNaN(detector.scaleFactor)
+                    || java.lang.Float.isInfinite(detector.scaleFactor)) return false
 
+            setScale(detector.scaleFactor, detector.focusX, detector.focusY)
+            return true
+        }
     }
 
-    override fun onScale(scaleFactor: Float, focusX: Float, focusY: Float) {
-        setScale(scaleFactor, focusX, focusY)
-    }
+    inner class GestureListener: GestureDetector.SimpleOnGestureListener() {
+        override fun onDoubleTap(e: MotionEvent): Boolean {
+            setScale(2f, e.x, e.y)
+            return true
+        }
 
-    override fun onTouch(v: View?, event: MotionEvent?): Boolean {
-        return if (event != null) gestureDetector.onTouchEvent(event) else false
+        override fun onScroll(e1: MotionEvent, e2: MotionEvent, distanceX: Float, distanceY: Float): Boolean {
+            setTransXY(-distanceX, -distanceY)
+            return true
+        }
     }
 }
