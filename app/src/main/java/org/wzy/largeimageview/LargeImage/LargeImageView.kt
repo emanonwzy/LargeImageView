@@ -3,10 +3,7 @@ package org.wzy.largeimageview.LargeImage
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Rect
-import android.os.Handler
-import android.os.HandlerThread
-import android.os.Looper
-import android.os.Message
+import android.os.*
 import android.support.v4.view.ViewCompat
 import android.util.AttributeSet
 import android.view.*
@@ -26,15 +23,17 @@ class LargeImageView : View, CellLoaderInterface {
         scaleGestureDetector = ScaleGestureDetector(context, ScaleListener())
         simpleGestureDetector = GestureDetector(context, GestureListener())
         scroller = OverScroller(context)
+        zoomer = Zoomer(context)
 
-        minTouchSize = dipToPx(context, 32).toInt()
+        minTouchSize = dipToPx(context, 48).toInt()
     }
 
     private var transX: Float = 0.0f
     private var transY: Float = 0.0f
-    private var scale: Float = 1.0f
+    private var scale: Float = -1.0f
     private var minScale: Float = 1.0f
     private val maxScale: Float = 4.0f
+    private var doubleTapStep: Float = 2.0f
     private val minTouchSize: Int
     private var loader: BitmapLoader? = null
     private var loaderThread: HandlerThread? = null
@@ -56,6 +55,7 @@ class LargeImageView : View, CellLoaderInterface {
 
     private val scaleGestureDetector: ScaleGestureDetector
     private val simpleGestureDetector: GestureDetector
+    private val zoomer: Zoomer
 
     private class LoaderHandler(myLooper: Looper,
                                 val img: LargeImageView) : Handler(myLooper) {
@@ -74,6 +74,28 @@ class LargeImageView : View, CellLoaderInterface {
         }
     }
 
+    private fun updateInitFactor() {
+        if (loader != null) {
+            if (scale == -1.0f) {
+                val bitmapWidth = loader!!.getWidth()
+                val bitmapHeight = loader!!.getHeight()
+
+                scale = Math.min(width.toFloat() / bitmapWidth.toFloat(),
+                        height.toFloat() / bitmapHeight.toFloat())
+                minScale = scale
+                transX = (width - bitmapWidth * scale) / 2
+                transY = (height - bitmapHeight * scale) / 2
+            } else {
+                // restore from save state
+                sendMessage(MSG_LOAD_CELL)
+            }
+
+            updateDisplayRect()
+
+            postInvalidate()
+        }
+    }
+
     private fun updateDisplayRect() {
         getDrawingRect(displayRect)
         displayRect.offset(-transX.toInt(), -transY.toInt())
@@ -85,23 +107,6 @@ class LargeImageView : View, CellLoaderInterface {
             top = (top / scale - displayHeight / 2).toInt()
             right = (right / scale + displayWidth / 2).toInt()
             bottom = (bottom / scale + displayHeight / 2).toInt()
-        }
-    }
-
-    private fun updateInitFactor() {
-        if (loader != null) {
-            val bitmapWidth = loader!!.getWidth()
-            val bitmapHeight = loader!!.getHeight()
-
-            scale = Math.min(width.toFloat() / bitmapWidth.toFloat(),
-                    height.toFloat() / bitmapHeight.toFloat())
-            minScale = scale
-            transX = (width - bitmapWidth * scale) / 2
-            transY = (height - bitmapHeight * scale) / 2
-
-            updateDisplayRect()
-
-            postInvalidate()
         }
     }
 
@@ -179,11 +184,14 @@ class LargeImageView : View, CellLoaderInterface {
         return false
     }
 
-    private fun setScale(newScale: Float, focusX: Float, focusY: Float): Boolean {
-        var tempScale = scale
-        tempScale *= newScale
+    private fun setNewScale(newScale: Float, focusX: Float, focusY: Float): Boolean {
+        var tempScale = scale * newScale
         tempScale = Math.max(minScale, Math.min(tempScale, maxScale))
 
+        return setScale(tempScale, focusX, focusY)
+    }
+
+    private fun setScale(tempScale: Float, focusX: Float, focusY: Float): Boolean {
         if (tempScale != this.scale) {
             val bitmapX = screenPointToBitmapPoint(focusX, scale, transX)
             val bitmapY = screenPointToBitmapPoint(focusY, scale, transY)
@@ -257,7 +265,8 @@ class LargeImageView : View, CellLoaderInterface {
                     || java.lang.Float.isInfinite(detector.scaleFactor)) return false
 
             if (hitTest(detector.focusX, detector.focusY)) {
-                setScale(detector.scaleFactor, detector.focusX, detector.focusY)
+                zoomer.forceFinished(true)
+                setNewScale(detector.scaleFactor, detector.focusX, detector.focusY)
                 return true
             }
             return false
@@ -273,12 +282,17 @@ class LargeImageView : View, CellLoaderInterface {
 
         override fun onDoubleTap(e: MotionEvent): Boolean {
             if (hitTest(e.x, e.y)) {
-                var doubleScale = 2f
+                zoomer.forceFinished(true)
 
-                if (scale * doubleScale > maxScale && scale == maxScale) {
-                    doubleScale = minScale / scale
+                zoomStartX = e.x
+                zoomStartY = e.y
+                zoomStartScale = scale
+                if (scale * doubleTapStep > maxScale && scale == maxScale) {
+                    setScale(minScale, zoomStartX, zoomStartY)
+                } else {
+                    zoomer.startZoom(doubleTapStep - 1)
+                    ViewCompat.postInvalidateOnAnimation(this@LargeImageView)
                 }
-                setScale(doubleScale, e.x, e.y)
                 return true
             }
             return false
@@ -304,6 +318,9 @@ class LargeImageView : View, CellLoaderInterface {
 
     private var flingStartX: Int = 0
     private var flingStartY: Int = 0
+    private var zoomStartX: Float = 0f
+    private var zoomStartY: Float = 0f
+    private var zoomStartScale: Float = 0f
 
     private fun fling(
             startX: Int,
@@ -318,7 +335,7 @@ class LargeImageView : View, CellLoaderInterface {
                 velocityY,
                 bitmapScreenRect.left, bitmapScreenRect.right,
                 bitmapScreenRect.top, bitmapScreenRect.bottom)
-        ViewCompat.postInvalidateOnAnimation(this);
+        ViewCompat.postInvalidateOnAnimation(this)
         return true
     }
 
@@ -356,8 +373,80 @@ class LargeImageView : View, CellLoaderInterface {
             setTransXY((flingStartX - currX).toFloat(), (flingStartY - currY).toFloat())
             flingStartX = currX
             flingStartY = currY
+            needsInvalidate = true
+        }
+
+        if (zoomer.computeZoom()) {
+            setScale(
+                    Math.min((zoomer.getCurrZoom() + 1) * zoomStartScale, maxScale),
+                    zoomStartX, zoomStartY)
+            needsInvalidate = true
         }
 
         if (needsInvalidate) ViewCompat.postInvalidateOnAnimation(this)
+    }
+
+    /////////////////////////////////////////////////////////
+    // implemented save state
+    ////////////////////////////////////////////////////////
+
+    override fun onSaveInstanceState(): Parcelable {
+        val praceable = super.onSaveInstanceState()
+        val ss = SavedState(praceable)
+        ss.transX = transX
+        ss.transY = transY
+        ss.scale = scale
+        ss.minScale = minScale
+        return ss
+    }
+
+    override fun onRestoreInstanceState(state: Parcelable) {
+        if (state !is SavedState) {
+            super.onRestoreInstanceState(state)
+            return
+        }
+
+        super.onRestoreInstanceState(state.superState)
+        transX = state.transX
+        transY = state.transY
+        scale = state.scale
+        minScale = state.minScale
+    }
+
+    class SavedState: BaseSavedState {
+        var transX: Float = 0.0f
+        var transY: Float = 0.0f
+        var scale: Float = 1.0f
+        var minScale: Float = 1.0f
+
+        constructor(parcelable: Parcelable): super(parcelable)
+
+        constructor(parcel: Parcel): super(parcel) {
+            transX = parcel.readFloat()
+            transY = parcel.readFloat()
+            scale = parcel.readFloat()
+            minScale = parcel.readFloat()
+        }
+
+        override fun writeToParcel(out: Parcel, flags: Int) {
+            super.writeToParcel(out, flags)
+            out.writeFloat(transX)
+            out.writeFloat(transY)
+            out.writeFloat(scale)
+            out.writeFloat(minScale)
+        }
+
+        companion object {
+            @JvmField val CREATOR: Parcelable.Creator<SavedState>
+                    = object: Parcelable.Creator<SavedState> {
+                override fun createFromParcel(source: Parcel): SavedState {
+                    return SavedState(source)
+                }
+
+                override fun newArray(size: Int): Array<SavedState?> {
+                    return arrayOfNulls(size)
+                }
+            }
+        }
     }
 }
