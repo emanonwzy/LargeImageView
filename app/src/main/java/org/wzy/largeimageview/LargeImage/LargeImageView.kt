@@ -9,7 +9,6 @@ import android.os.Looper
 import android.os.Message
 import android.support.v4.view.ViewCompat
 import android.util.AttributeSet
-import android.util.Log
 import android.view.*
 import android.widget.OverScroller
 import java.io.InputStream
@@ -28,7 +27,7 @@ class LargeImageView : View, CellLoaderInterface {
         simpleGestureDetector = GestureDetector(context, GestureListener())
         scroller = OverScroller(context)
 
-        minTouchSize = dipToPx(context, 32)
+        minTouchSize = dipToPx(context, 32).toInt()
     }
 
     private var transX: Float = 0.0f
@@ -36,7 +35,7 @@ class LargeImageView : View, CellLoaderInterface {
     private var scale: Float = 1.0f
     private var minScale: Float = 1.0f
     private val maxScale: Float = 4.0f
-    private val minTouchSize: Float
+    private val minTouchSize: Int
     private var loader: BitmapLoader? = null
     private var loaderThread: HandlerThread? = null
     private var loaderHandler: LoaderHandler? = null
@@ -44,6 +43,9 @@ class LargeImageView : View, CellLoaderInterface {
 
     private val displayRect: Rect = Rect()
     private val cellDrawRect: Rect = Rect()
+
+    private val cellInvalidateRect: Rect = Rect()
+    private val bitmapScreenRect: Rect = Rect()
 
     private val MSG_SET_IMAGE = 1
     private val MSG_LOAD_CELL = 2
@@ -119,29 +121,6 @@ class LargeImageView : View, CellLoaderInterface {
     }
 
     private fun drawBackground(canvas: Canvas?, scaleSampleSize: Int) {
-//        getDrawingRect(backgroundDrawRect)
-//        backgroundDrawRect.offset(-transX.toInt(), -transY.toInt())
-//        getBitampRectFromDisplayRect(backgroundDrawRect, backgroundRect, scale)
-//
-//        if (loader != null && loader!!.isInitied()) {
-//            if (backgroundRect.intersect(loader?.getInitCell()?.region) && !backgroundRect.isEmpty) {
-//
-//                val sampleSize:Int = loader?.getInitCell()?.inSampleSize!!
-//
-//                getDisplayRectFromBitmapRect(backgroundRect, backgroundDrawRect, scale)
-//                backgroundDrawRect.offset(transX.toInt(), transY.toInt())
-//
-//                with(backgroundRect) {
-//                    left /= sampleSize
-//                    top /= sampleSize
-//                    right /= sampleSize
-//                    bottom /= sampleSize
-//                }
-//
-//                canvas?.drawBitmap(loader?.getInitCell()?.bitmap,
-//                        backgroundRect, backgroundDrawRect, null)
-//            }
-//        }
         val cell = loader?.getInitCell()
         if (cell?.bitmap != null) {
             with(cell!!.region) {
@@ -206,12 +185,13 @@ class LargeImageView : View, CellLoaderInterface {
         tempScale = Math.max(minScale, Math.min(tempScale, maxScale))
 
         if (tempScale != this.scale) {
-            val (bitmapX, bitmapY) = screenPointToBitmapPoint(focusX, focusY,
-                    scale, transX, transY)
+            val bitmapX = screenPointToBitmapPoint(focusX, scale, transX)
+            val bitmapY = screenPointToBitmapPoint(focusY, scale, transY)
 
             this.scale = tempScale
-            val (newFocusX, newFocusY) = bitmapPointToScreenPoint(bitmapX, bitmapY,
-                    tempScale, transX, transY)
+
+            val newFocusX = bitmapPointToScreenPoint(bitmapX, tempScale, transX)
+            val newFocusY = bitmapPointToScreenPoint(bitmapY, tempScale, transY)
 
             if (!setTransXY(focusX - newFocusX, focusY - newFocusY)) {
                 sendMessage(MSG_LOAD_CELL)
@@ -251,20 +231,18 @@ class LargeImageView : View, CellLoaderInterface {
         }
     }
 
-    fun clear() {
+    private fun clear() {
         loader?.stop()
         loaderThread?.quit()
     }
 
     override fun cellLoaded(cell: Cell) {
-        val (left, top) = bitmapPointToScreenPoint(cell.region.left.toFloat(),
-                cell.region.top.toFloat(),
-                scale, transX, transY)
 
-        val (right, bottom) = bitmapPointToScreenPoint(cell.region.right.toFloat(),
-                cell.region.bottom.toFloat(),
-                scale, transX, transY)
-        postInvalidate(left.toInt(), top.toInt(), right.toInt(), bottom.toInt())
+        bitmapRectToScreenRect(cell.region, cellInvalidateRect, scale, transX, transY)
+
+        with(cellInvalidateRect) {
+            postInvalidate(left, top, right, bottom)
+        }
     }
 
     override fun onTouchEvent(event: MotionEvent?): Boolean {
@@ -295,12 +273,12 @@ class LargeImageView : View, CellLoaderInterface {
 
         override fun onDoubleTap(e: MotionEvent): Boolean {
             if (hitTest(e.x, e.y)) {
-                var doubalScale = 2f
+                var doubleScale = 2f
 
-                if (scale * doubalScale > maxScale && scale == maxScale) {
-                    doubalScale = minScale / scale
+                if (scale * doubleScale > maxScale && scale == maxScale) {
+                    doubleScale = minScale / scale
                 }
-                setScale(doubalScale, e.x, e.y)
+                setScale(doubleScale, e.x, e.y)
                 return true
             }
             return false
@@ -332,30 +310,39 @@ class LargeImageView : View, CellLoaderInterface {
             startY: Int,
             velocityX: Int,
             velocityY: Int): Boolean {
-        val (left, top) = bitmapPointToScreenPoint(0f, 0f, scale, transX, transY)
-        val (right, bottom) = bitmapPointToScreenPoint(loader!!.getWidth().toFloat(),
-                loader!!.getHeight().toFloat(), scale, transX, transY)
-
         scroller.forceFinished(true)
 
         scroller.fling(startX,
                 startY,
                 velocityX,
                 velocityY,
-                left.toInt(), right.toInt(),
-                top.toInt(), bottom.toInt())
+                bitmapScreenRect.left, bitmapScreenRect.right,
+                bitmapScreenRect.top, bitmapScreenRect.bottom)
         ViewCompat.postInvalidateOnAnimation(this);
         return true
     }
 
-    private fun hitTest(x: Float, y: Float): Boolean {
-        return loader != null
-                && loader!!.isInitied()
-                && hitTest(x, y,
-                loader!!.getWidth(),
+    private fun updateBitmapScreenRect() {
+        bitmapRectToScreenRect(loader!!.getWidth(),
                 loader!!.getHeight(),
-                scale, transX, transY,
-                minTouchSize)
+                bitmapScreenRect,
+                scale, transX, transY)
+        if (bitmapScreenRect.width() < minTouchSize) {
+            bitmapScreenRect.left -= minTouchSize / 2
+            bitmapScreenRect.right += minTouchSize / 2
+        }
+        if (bitmapScreenRect.height() < minTouchSize) {
+            bitmapScreenRect.top -= minTouchSize / 2
+            bitmapScreenRect.bottom += minTouchSize / 2
+        }
+    }
+
+    private fun hitTest(x: Float, y: Float): Boolean {
+        if (loader != null && loader!!.isInitied()) {
+            updateBitmapScreenRect()
+            return bitmapScreenRect.contains(x.toInt(), y.toInt())
+        }
+        return false
     }
 
     override fun computeScroll() {

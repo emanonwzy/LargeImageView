@@ -17,62 +17,36 @@ fun getSampleSize(scale: Float): Int {
     return result
 }
 
-/**
- * get screen bitmap point from screen point
- *
- * @param x screen point x
- * @param y screen point y
- * @param scale scale factor
- * @param transX screen trans x
- * @param transY screen trans y
- * @return point on bitmap
- */
-fun screenPointToBitmapPoint(x: Float, y: Float, scale: Float,
-                             transX: Float, transY: Float): Pair<Float, Float> {
-    return Pair((x - transX) / scale, (y - transY) / scale)
+fun screenPointToBitmapPoint(x: Float, scale: Float, transX: Float): Float {
+    return (x - transX) / scale
 }
 
-fun bitmapPointToScreenPoint(x: Float, y: Float, scale: Float,
-                             transX: Float, transY: Float): Pair<Float, Float> {
-    return Pair(x * scale + transX, y * scale + transY)
+fun bitmapPointToScreenPoint(x: Float, scale: Float, transX: Float): Float {
+    return x * scale + transX
 }
 
-fun getBitampRectFromDisplayRect(displayRect: Rect, bitmapRectF: Rect, scale: Float) {
-    with(displayRect) {
-        bitmapRectF.left = (left.toFloat() / scale).toInt()
-        bitmapRectF.top = (top.toFloat() / scale).toInt()
-        bitmapRectF.right = (right.toFloat() / scale).toInt()
-        bitmapRectF.bottom = (bottom.toFloat() / scale).toInt()
-    }
-}
-
-fun getDisplayRectFromBitmapRect(bitmapRect: Rect, displayRect: Rect, scale: Float) {
+fun bitmapRectToScreenRect(bitmapRect: Rect, screenRect: Rect,
+                           scale: Float,
+                           transX: Float,
+                           transY: Float) {
     with(bitmapRect) {
-        displayRect.left = (left.toFloat() * scale).toInt()
-        displayRect.top = (top.toFloat() * scale).toInt()
-        displayRect.right = (right.toFloat() * scale).toInt()
-        displayRect.bottom = (bottom.toFloat() * scale).toInt()
+        screenRect.left = bitmapPointToScreenPoint(left.toFloat(), scale, transX).toInt()
+        screenRect.top = bitmapPointToScreenPoint(top.toFloat(), scale, transY).toInt()
+        screenRect.right = bitmapPointToScreenPoint(right.toFloat(), scale, transX).toInt()
+        screenRect.bottom = bitmapPointToScreenPoint(bottom.toFloat(), scale, transY).toInt()
     }
 }
 
-fun hitTest(screenX: Float, screenY: Float, bitmapWidth: Int, bitmapHeight: Int,
-            scale: Float, transX: Float, transY: Float,
-            minTouchSize: Float): Boolean {
-    var (left, top) = bitmapPointToScreenPoint(0f, 0f, scale, transX, transY)
-    var (right, bottom) = bitmapPointToScreenPoint(bitmapWidth.toFloat(), bitmapHeight.toFloat(),
-            scale, transX, transY)
-
-    if (right - left < minTouchSize) {
-        left -= minTouchSize / 2
-        right += minTouchSize / 2
+fun bitmapRectToScreenRect(width: Int, height: Int,
+                           screenRect: Rect,
+                           scale: Float,
+                           transX: Float, transY: Float) {
+    with(screenRect) {
+        left = bitmapPointToScreenPoint(0f, scale, transX).toInt()
+        top = bitmapPointToScreenPoint(0f, scale, transY).toInt()
+        right = bitmapPointToScreenPoint(width.toFloat(), scale, transX).toInt()
+        bottom = bitmapPointToScreenPoint(height.toFloat(), scale, transY).toInt()
     }
-
-    if (bottom - top < minTouchSize) {
-        top -= minTouchSize / 2
-        bottom += minTouchSize / 2
-    }
-
-    return screenX > left && screenX < right && screenY > top && screenY < bottom
 }
 
 fun dipToPx(ctx: Context, dp: Int): Float {
