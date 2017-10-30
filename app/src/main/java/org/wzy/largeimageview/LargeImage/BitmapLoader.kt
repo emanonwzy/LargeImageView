@@ -96,7 +96,7 @@ class BitmapLoader(val cellWidth: Int,
                         if (cells == null) cells = CopyOnWriteArrayList()
                         cells?.add(cell)
 
-                        Log.d("www", "decode cell, rect=" + cellRegion + ", bitmap=(" + cell.bitmap?.width + "," + cell.bitmap?.height + ")")
+                        Log.d(LOG_TAG, "decode cell, rect=" + cellRegion + ", bitmap=(" + cell.bitmap?.width + "," + cell.bitmap?.height + ")")
                     }
                     loaderInterface?.cellLoaded(cell)
                 }
@@ -109,7 +109,7 @@ class BitmapLoader(val cellWidth: Int,
         if (recycleCells != null) {
             cells?.removeAll(recycleCells)
             recycleCells.forEach {
-                Log.d("www", "recycle cell, rect=${it.region}")
+                Log.d(LOG_TAG, "recycle cell, rect=${it.region}")
                 it.bitmap?.recycle()
                 it.bitmap = null
             }

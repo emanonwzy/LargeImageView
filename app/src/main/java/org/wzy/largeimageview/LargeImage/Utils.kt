@@ -9,6 +9,8 @@ import android.view.WindowManager
  * Created by zeyiwu on 21/10/2017.
  */
 
+val LOG_TAG = "LargeImageView"
+
 fun getSampleSize(scale: Float): Int {
     var result = 1
     while (result * scale < 1) {
