@@ -3,14 +3,13 @@ package org.wzy.largeimageview.LargeImage
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Rect
-import android.os.Handler
-import android.os.HandlerThread
-import android.os.Looper
-import android.os.Message
+import android.os.*
 import android.support.v4.view.ViewCompat
 import android.util.AttributeSet
 import android.view.*
 import android.widget.OverScroller
+import java.io.File
+import java.io.FileInputStream
 import java.io.InputStream
 
 /**
@@ -26,15 +25,20 @@ class LargeImageView : View, CellLoaderInterface {
         scaleGestureDetector = ScaleGestureDetector(context, ScaleListener())
         simpleGestureDetector = GestureDetector(context, GestureListener())
         scroller = OverScroller(context)
+        zoomer = Zoomer(context)
 
-        minTouchSize = dipToPx(context, 32).toInt()
+        minTouchSize = dipToPx(context, 48).toInt()
     }
+
+    private val MSG_SET_IMAGE = 1
+    private val MSG_LOAD_CELL = 2
 
     private var transX: Float = 0.0f
     private var transY: Float = 0.0f
-    private var scale: Float = 1.0f
+    private var scale: Float = -1.0f
     private var minScale: Float = 1.0f
     private val maxScale: Float = 4.0f
+    private var doubleTapStep: Float = 2.0f
     private val minTouchSize: Int
     private var loader: BitmapLoader? = null
     private var loaderThread: HandlerThread? = null
@@ -47,15 +51,13 @@ class LargeImageView : View, CellLoaderInterface {
     private val cellInvalidateRect: Rect = Rect()
     private val bitmapScreenRect: Rect = Rect()
 
-    private val MSG_SET_IMAGE = 1
-    private val MSG_LOAD_CELL = 2
-
     private var touchSlop: Int = 0
 
     private var inputStream: InputStream? = null
 
     private val scaleGestureDetector: ScaleGestureDetector
     private val simpleGestureDetector: GestureDetector
+    private val zoomer: Zoomer
 
     private class LoaderHandler(myLooper: Looper,
                                 val img: LargeImageView) : Handler(myLooper) {
@@ -74,6 +76,28 @@ class LargeImageView : View, CellLoaderInterface {
         }
     }
 
+    private fun updateInitFactor() {
+        if (loader != null) {
+            if (scale == -1.0f) {
+                val bitmapWidth = loader!!.getWidth()
+                val bitmapHeight = loader!!.getHeight()
+
+                scale = Math.min(width.toFloat() / bitmapWidth.toFloat(),
+                        height.toFloat() / bitmapHeight.toFloat())
+                minScale = scale
+                transX = (width - bitmapWidth * scale) / 2
+                transY = (height - bitmapHeight * scale) / 2
+            } else {
+                // restore from save state
+                sendMessage(MSG_LOAD_CELL)
+            }
+
+            updateDisplayRect()
+
+            postInvalidate()
+        }
+    }
+
     private fun updateDisplayRect() {
         getDrawingRect(displayRect)
         displayRect.offset(-transX.toInt(), -transY.toInt())
@@ -88,23 +112,56 @@ class LargeImageView : View, CellLoaderInterface {
         }
     }
 
-    private fun updateInitFactor() {
-        if (loader != null) {
-            val bitmapWidth = loader!!.getWidth()
-            val bitmapHeight = loader!!.getHeight()
-
-            scale = Math.min(width.toFloat() / bitmapWidth.toFloat(),
-                    height.toFloat() / bitmapHeight.toFloat())
-            minScale = scale
-            transX = (width - bitmapWidth * scale) / 2
-            transY = (height - bitmapHeight * scale) / 2
-
-            updateDisplayRect()
-
-            postInvalidate()
+    /**
+     * set image inputstream
+     */
+    public fun setImage(inputStream: InputStream) {
+        this.inputStream = inputStream
+        clear()
+        post {
+            initLoader()
+            sendMessage(MSG_SET_IMAGE)
         }
     }
 
+    public fun setImage(file: File) {
+        val fileInputStream = FileInputStream(file)
+        setImage(fileInputStream)
+    }
+
+    private fun initLoader() {
+        loader = BitmapLoader(width, height)
+        loader?.setLoaderInterface(this)
+
+        loaderThread = HandlerThread("load_bitmap")
+        loaderThread?.start()
+        loaderHandler = LoaderHandler(loaderThread!!.looper, this)
+    }
+
+    private fun clear() {
+        loader?.stop()
+        loaderThread?.quit()
+    }
+
+    private fun sendMessage(what: Int) {
+        if (loaderHandler != null) {
+            val msg = Message.obtain(loaderHandler, what)
+            msg.sendToTarget()
+        }
+    }
+
+    override fun cellLoaded(cell: Cell) {
+
+        bitmapRectToScreenRect(cell.region, cellInvalidateRect, scale, transX, transY)
+
+        with(cellInvalidateRect) {
+            postInvalidate(left, top, right, bottom)
+        }
+    }
+
+    ///////////////////////////////////////////////////////////////
+    //// draw
+    ///////////////////////////////////////////////////////////////
     override fun onDraw(canvas: Canvas?) {
         super.onDraw(canvas)
 
@@ -147,6 +204,102 @@ class LargeImageView : View, CellLoaderInterface {
         }
     }
 
+    private fun getScale(): Float {
+        return scale
+    }
+
+    //////////////////////////////////////////////////////////
+    /// touch scale: drag, fling, zoom in / zoom out
+    /////////////////////////////////////////////////////////
+    override fun onTouchEvent(event: MotionEvent?): Boolean {
+        var retVal = scaleGestureDetector.onTouchEvent(event)
+        retVal = simpleGestureDetector.onTouchEvent(event) || retVal
+        return retVal || super.onTouchEvent(event)
+    }
+
+    inner class ScaleListener: ScaleGestureDetector.SimpleOnScaleGestureListener() {
+        override fun onScale(detector: ScaleGestureDetector): Boolean {
+            if (java.lang.Float.isNaN(detector.scaleFactor)
+                    || java.lang.Float.isInfinite(detector.scaleFactor)) return false
+
+            if (hitTest(detector.focusX, detector.focusY)) {
+                zoomer.forceFinished(true)
+                setNewScale(detector.scaleFactor, detector.focusX, detector.focusY)
+                return true
+            }
+            return false
+        }
+    }
+
+    inner class GestureListener: GestureDetector.SimpleOnGestureListener() {
+
+        override fun onDown(e: MotionEvent?): Boolean {
+            scroller.forceFinished(true)
+            return true
+        }
+
+        override fun onDoubleTap(e: MotionEvent): Boolean {
+            if (hitTest(e.x, e.y)) {
+                zoomer.forceFinished(true)
+
+                zoomStartX = e.x
+                zoomStartY = e.y
+                zoomStartScale = scale
+                if (scale * doubleTapStep > maxScale && scale == maxScale) {
+                    setScale(minScale, zoomStartX, zoomStartY)
+                } else {
+                    zoomer.startZoom(doubleTapStep - 1)
+                    ViewCompat.postInvalidateOnAnimation(this@LargeImageView)
+                }
+                return true
+            }
+            return false
+        }
+
+        override fun onScroll(e1: MotionEvent, e2: MotionEvent, distanceX: Float, distanceY: Float): Boolean {
+            if (hitTest(e1.x, e2.y)) {
+                setTransXY(-distanceX, -distanceY)
+                return true
+            }
+            return false
+        }
+
+        override fun onFling(e1: MotionEvent, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
+            if (hitTest(e1.x, e1.y)) {
+                flingStartX = e1.x.toInt()
+                flingStartY = e1.y.toInt()
+                return fling(flingStartX, flingStartY, -velocityX.toInt(), -velocityY.toInt())
+            }
+            return false
+        }
+    }
+
+    private fun setNewScale(newScale: Float, focusX: Float, focusY: Float): Boolean {
+        var tempScale = scale * newScale
+        tempScale = Math.max(minScale, Math.min(tempScale, maxScale))
+
+        return setScale(tempScale, focusX, focusY)
+    }
+
+    private fun setScale(tempScale: Float, focusX: Float, focusY: Float): Boolean {
+        if (tempScale != this.scale) {
+            val bitmapX = screenPointToBitmapPoint(focusX, scale, transX)
+            val bitmapY = screenPointToBitmapPoint(focusY, scale, transY)
+
+            this.scale = tempScale
+
+            val newFocusX = bitmapPointToScreenPoint(bitmapX, tempScale, transX)
+            val newFocusY = bitmapPointToScreenPoint(bitmapY, tempScale, transY)
+
+            if (!setTransXY(focusX - newFocusX, focusY - newFocusY)) {
+                sendMessage(MSG_LOAD_CELL)
+                invalidate()
+            }
+            return true
+        }
+        return false
+    }
+
     private fun setTransXY(x: Float, y: Float): Boolean {
         val bitmapWidth = loader!!.getWidth() * scale
         val bitmapHeight = loader!!.getHeight() * scale
@@ -179,131 +332,11 @@ class LargeImageView : View, CellLoaderInterface {
         return false
     }
 
-    private fun setScale(newScale: Float, focusX: Float, focusY: Float): Boolean {
-        var tempScale = scale
-        tempScale *= newScale
-        tempScale = Math.max(minScale, Math.min(tempScale, maxScale))
-
-        if (tempScale != this.scale) {
-            val bitmapX = screenPointToBitmapPoint(focusX, scale, transX)
-            val bitmapY = screenPointToBitmapPoint(focusY, scale, transY)
-
-            this.scale = tempScale
-
-            val newFocusX = bitmapPointToScreenPoint(bitmapX, tempScale, transX)
-            val newFocusY = bitmapPointToScreenPoint(bitmapY, tempScale, transY)
-
-            if (!setTransXY(focusX - newFocusX, focusY - newFocusY)) {
-                sendMessage(MSG_LOAD_CELL)
-                invalidate()
-            }
-            return true
-        }
-        return false
-    }
-
-    private fun getScale(): Float {
-        return scale
-    }
-
-    fun setImage(inputStream: InputStream) {
-        this.inputStream = inputStream
-        clear()
-        post {
-            initLoader()
-            sendMessage(MSG_SET_IMAGE)
-        }
-    }
-
-    private fun initLoader() {
-        loader = BitmapLoader(width, height)
-        loader?.setLoaderInterface(this)
-
-        loaderThread = HandlerThread("load_bitmap")
-        loaderThread?.start()
-        loaderHandler = LoaderHandler(loaderThread!!.looper, this)
-    }
-
-    private fun sendMessage(what: Int) {
-        if (loaderHandler != null) {
-            val msg = Message.obtain(loaderHandler, what)
-            msg.sendToTarget()
-        }
-    }
-
-    private fun clear() {
-        loader?.stop()
-        loaderThread?.quit()
-    }
-
-    override fun cellLoaded(cell: Cell) {
-
-        bitmapRectToScreenRect(cell.region, cellInvalidateRect, scale, transX, transY)
-
-        with(cellInvalidateRect) {
-            postInvalidate(left, top, right, bottom)
-        }
-    }
-
-    override fun onTouchEvent(event: MotionEvent?): Boolean {
-        var retVal = scaleGestureDetector.onTouchEvent(event)
-        retVal = simpleGestureDetector.onTouchEvent(event) || retVal
-        return retVal || super.onTouchEvent(event)
-    }
-
-    inner class ScaleListener: ScaleGestureDetector.SimpleOnScaleGestureListener() {
-        override fun onScale(detector: ScaleGestureDetector): Boolean {
-            if (java.lang.Float.isNaN(detector.scaleFactor)
-                    || java.lang.Float.isInfinite(detector.scaleFactor)) return false
-
-            if (hitTest(detector.focusX, detector.focusY)) {
-                setScale(detector.scaleFactor, detector.focusX, detector.focusY)
-                return true
-            }
-            return false
-        }
-    }
-
-    inner class GestureListener: GestureDetector.SimpleOnGestureListener() {
-
-        override fun onDown(e: MotionEvent?): Boolean {
-            scroller.forceFinished(true)
-            return true
-        }
-
-        override fun onDoubleTap(e: MotionEvent): Boolean {
-            if (hitTest(e.x, e.y)) {
-                var doubleScale = 2f
-
-                if (scale * doubleScale > maxScale && scale == maxScale) {
-                    doubleScale = minScale / scale
-                }
-                setScale(doubleScale, e.x, e.y)
-                return true
-            }
-            return false
-        }
-
-        override fun onScroll(e1: MotionEvent, e2: MotionEvent, distanceX: Float, distanceY: Float): Boolean {
-            if (hitTest(e1.x, e2.y)) {
-                setTransXY(-distanceX, -distanceY)
-                return true
-            }
-            return false
-        }
-
-        override fun onFling(e1: MotionEvent, e2: MotionEvent, velocityX: Float, velocityY: Float): Boolean {
-            if (hitTest(e1.x, e1.y)) {
-                flingStartX = e1.x.toInt()
-                flingStartY = e1.y.toInt()
-                return fling(flingStartX, flingStartY, -velocityX.toInt(), -velocityY.toInt())
-            }
-            return false
-        }
-    }
-
     private var flingStartX: Int = 0
     private var flingStartY: Int = 0
+    private var zoomStartX: Float = 0f
+    private var zoomStartY: Float = 0f
+    private var zoomStartScale: Float = 0f
 
     private fun fling(
             startX: Int,
@@ -318,7 +351,7 @@ class LargeImageView : View, CellLoaderInterface {
                 velocityY,
                 bitmapScreenRect.left, bitmapScreenRect.right,
                 bitmapScreenRect.top, bitmapScreenRect.bottom)
-        ViewCompat.postInvalidateOnAnimation(this);
+        ViewCompat.postInvalidateOnAnimation(this)
         return true
     }
 
@@ -356,8 +389,80 @@ class LargeImageView : View, CellLoaderInterface {
             setTransXY((flingStartX - currX).toFloat(), (flingStartY - currY).toFloat())
             flingStartX = currX
             flingStartY = currY
+            needsInvalidate = true
+        }
+
+        if (zoomer.computeZoom()) {
+            setScale(
+                    Math.min((zoomer.getCurrZoom() + 1) * zoomStartScale, maxScale),
+                    zoomStartX, zoomStartY)
+            needsInvalidate = true
         }
 
         if (needsInvalidate) ViewCompat.postInvalidateOnAnimation(this)
+    }
+
+    /////////////////////////////////////////////////////////
+    // implemented save state
+    ////////////////////////////////////////////////////////
+
+    override fun onSaveInstanceState(): Parcelable {
+        val praceable = super.onSaveInstanceState()
+        val ss = SavedState(praceable)
+        ss.transX = transX
+        ss.transY = transY
+        ss.scale = scale
+        ss.minScale = minScale
+        return ss
+    }
+
+    override fun onRestoreInstanceState(state: Parcelable) {
+        if (state !is SavedState) {
+            super.onRestoreInstanceState(state)
+            return
+        }
+
+        super.onRestoreInstanceState(state.superState)
+        transX = state.transX
+        transY = state.transY
+        scale = state.scale
+        minScale = state.minScale
+    }
+
+    class SavedState: BaseSavedState {
+        var transX: Float = 0.0f
+        var transY: Float = 0.0f
+        var scale: Float = 1.0f
+        var minScale: Float = 1.0f
+
+        constructor(parcelable: Parcelable): super(parcelable)
+
+        constructor(parcel: Parcel): super(parcel) {
+            transX = parcel.readFloat()
+            transY = parcel.readFloat()
+            scale = parcel.readFloat()
+            minScale = parcel.readFloat()
+        }
+
+        override fun writeToParcel(out: Parcel, flags: Int) {
+            super.writeToParcel(out, flags)
+            out.writeFloat(transX)
+            out.writeFloat(transY)
+            out.writeFloat(scale)
+            out.writeFloat(minScale)
+        }
+
+        companion object {
+            @JvmField val CREATOR: Parcelable.Creator<SavedState>
+                    = object: Parcelable.Creator<SavedState> {
+                override fun createFromParcel(source: Parcel): SavedState {
+                    return SavedState(source)
+                }
+
+                override fun newArray(size: Int): Array<SavedState?> {
+                    return arrayOfNulls(size)
+                }
+            }
+        }
     }
 }
