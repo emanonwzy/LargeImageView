@@ -1,4 +1,4 @@
-package org.wzy.largeimageview.LargeImage
+package org.wzy.largeimage
 
 import android.graphics.*
 import android.util.Log

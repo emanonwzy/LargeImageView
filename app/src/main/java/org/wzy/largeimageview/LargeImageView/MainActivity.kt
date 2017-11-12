@@ -6,15 +6,13 @@ import android.support.v7.app.AppCompatActivity
 import android.view.View
 import android.view.ViewTreeObserver
 import android.widget.Button
-import org.wzy.largeimageview.LargeImage.LargeImageView
+import org.wzy.largeimage.LargeImageView
 import org.wzy.largeimageview.R
 
 /**
  * Created by zeyiwu on 26/08/2017.
  */
 class MainActivity : AppCompatActivity() {
-
-    var img: LargeImageView? = null
 
     inline fun <T: View> T.afterMeasured(crossinline f: T.() -> Unit) {
         viewTreeObserver.addOnGlobalLayoutListener(object : ViewTreeObserver.OnGlobalLayoutListener {
@@ -34,13 +32,13 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-        img = findViewById(R.id.img) as LargeImageView
+        val img = findViewById<LargeImageView>(R.id.img)
 
-        img?.setImage(assets.open("aaa.jpg"))
+        img.setImage(assets.open("aaa.jpg"))
 
-        val button = findViewById(R.id.change) as Button
+        val button = findViewById<Button>(R.id.change)
         button.setOnClickListener {
-            img?.setImage(assets.open("111.jpg"))
+            img.setImage(assets.open("111.jpg"))
         }
     }
 }

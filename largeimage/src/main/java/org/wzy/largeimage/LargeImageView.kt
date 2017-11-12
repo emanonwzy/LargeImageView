@@ -1,4 +1,4 @@
-package org.wzy.largeimageview.LargeImage
+package org.wzy.largeimage
 
 import android.content.Context
 import android.graphics.Canvas
@@ -8,6 +8,8 @@ import android.support.v4.view.ViewCompat
 import android.util.AttributeSet
 import android.view.*
 import android.widget.OverScroller
+import java.io.File
+import java.io.FileInputStream
 import java.io.InputStream
 
 /**
@@ -214,13 +216,17 @@ class LargeImageView : View, CellLoaderInterface {
         return scale
     }
 
-    fun setImage(inputStream: InputStream) {
+    public fun setImage(inputStream: InputStream) {
         this.inputStream = inputStream
         clear()
         post {
             initLoader()
             sendMessage(MSG_SET_IMAGE)
         }
+    }
+
+    public fun setImage(file: File) {
+        setImage(FileInputStream(file))
     }
 
     private fun initLoader() {
