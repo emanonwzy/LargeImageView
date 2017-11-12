@@ -11,10 +11,27 @@
         android:layout_height="match_parent" />
 
     <Button
-        android:id="@+id/change"
+        android:id="@+id/pic1"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_alignParentBottom="true"
         android:layout_alignParentRight="true"
-        android:text="change"/>
+        android:layout_marginBottom="144dp"
+        android:text="pic1"/>
+    <Button
+        android:id="@+id/pic2"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_alignParentRight="true"
+        android:layout_marginBottom="80dp"
+        android:text="pic2"/>
+    <Button
+        android:id="@+id/pic3"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_alignParentRight="true"
+        android:layout_marginBottom="16dp"
+        android:text="pic3"/>
 </RelativeLayout>

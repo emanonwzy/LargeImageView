@@ -33,7 +33,7 @@ dependencies {
 
 ```java
 LargeImageView image = (LargeImageView) findViewById(R.id.img);
-image.setImage(new File("/mnt/sdcard/test.jpg"));
+image.setImageResource(new File("/mnt/sdcard/test.jpg"));
 ```
 
 That's it!

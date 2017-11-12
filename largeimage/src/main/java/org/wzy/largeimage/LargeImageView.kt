@@ -216,7 +216,7 @@ class LargeImageView : View, CellLoaderInterface {
         return scale
     }
 
-    public fun setImage(inputStream: InputStream) {
+    public fun setImageResource(inputStream: InputStream) {
         this.inputStream = inputStream
         clear()
         post {
@@ -225,8 +225,8 @@ class LargeImageView : View, CellLoaderInterface {
         }
     }
 
-    public fun setImage(file: File) {
-        setImage(FileInputStream(file))
+    public fun setImageResource(file: File) {
+        setImageResource(FileInputStream(file))
     }
 
     private fun initLoader() {
@@ -248,6 +248,13 @@ class LargeImageView : View, CellLoaderInterface {
     private fun clear() {
         loader?.stop()
         loaderThread?.quit()
+
+        loader = null
+        loaderThread = null
+        transX = 0.0f
+        transY = 0.0f
+        scale = -1.0f
+        minScale = 1.0f
     }
 
     override fun cellLoaded(cell: Cell) {
