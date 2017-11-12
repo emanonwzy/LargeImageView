@@ -33,12 +33,17 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         val img = findViewById<LargeImageView>(R.id.img)
+        img.setImageResource(assets.open("b.jpg"))
 
-        img.setImage(assets.open("aaa.jpg"))
 
-        val button = findViewById<Button>(R.id.change)
-        button.setOnClickListener {
-            img.setImage(assets.open("111.jpg"))
+        findViewById<Button>(R.id.pic1).setOnClickListener {
+            img.setImageResource(assets.open("a.jpg"))
+        }
+        findViewById<Button>(R.id.pic2).setOnClickListener {
+            img.setImageResource(assets.open("b.jpg"))
+        }
+        findViewById<Button>(R.id.pic3).setOnClickListener {
+            img.setImageResource(assets.open("c.jpg"))
         }
     }
 }

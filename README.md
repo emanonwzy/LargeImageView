@@ -1,22 +1,10 @@
 # LargeImageView
 分片加载的超大图浏览
 
+# 效果
+![image](raw/output.gif)
+
 ## Dependency
-
-```gradle
-allprojects {
-        repositories {
-            maven { url "" }
-        }
-}
-```
-
-在 `build.gradle` 中添加依赖
-```gradle
-dependencies {
-    compile 'org.wzy:largeimage:0.1.0'
-}
-```
 
 ## Features
 - 手势放大缩小／双击放大
@@ -33,7 +21,7 @@ dependencies {
 
 ```java
 LargeImageView image = (LargeImageView) findViewById(R.id.img);
-image.setImage(new File("/mnt/sdcard/test.jpg"));
+image.setImageResource(new File("/mnt/sdcard/test.jpg"));
 ```
 
 That's it!
