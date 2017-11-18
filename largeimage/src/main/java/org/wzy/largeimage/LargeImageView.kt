@@ -100,17 +100,9 @@ class LargeImageView : View, CellLoaderInterface {
 
     private fun updateDisplayRect() {
         getDrawingRect(displayRect)
-        displayRect.offset(-transX.toInt(), -transY.toInt())
-
-        val displayWidth = displayRect.width() / scale
-        val displayHeight = displayRect.height() / scale
+        screenRectToBitmapRect(displayRect, scale, transX, transY)
         // 扩大显示范围，提前加载后面半屏的内容
-        with(displayRect) {
-            left = (left / scale - displayWidth / 2).toInt()
-            top = (top / scale - displayHeight / 2).toInt()
-            right = (right / scale + displayWidth / 2).toInt()
-            bottom = (bottom / scale + displayHeight / 2).toInt()
-        }
+        displayRect.inset(-displayRect.width() / 2, -displayRect.height() / 2)
     }
 
     override fun onDraw(canvas: Canvas) {
@@ -247,6 +239,11 @@ class LargeImageView : View, CellLoaderInterface {
     }
 
     private fun clear() {
+        scroller.forceFinished(true)
+        zoomer.forceFinished(true)
+
+        loaderHandler?.removeCallbacksAndMessages(null)
+        loader?.setLoaderInterface(null)
         loader?.stop()
         loaderThread?.quit()
 

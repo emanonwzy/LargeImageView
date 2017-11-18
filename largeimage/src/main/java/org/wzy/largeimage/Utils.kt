@@ -27,6 +27,18 @@ fun bitmapPointToScreenPoint(x: Float, scale: Float, transX: Float): Float {
     return x * scale + transX
 }
 
+fun screenRectToBitmapRect(screenRect: Rect,
+                           scale: Float,
+                           transX: Float,
+                           transY: Float) {
+    with(screenRect) {
+        left = screenPointToBitmapPoint(left.toFloat(), scale, transX).toInt()
+        top = screenPointToBitmapPoint(top.toFloat(), scale, transY).toInt()
+        right = screenPointToBitmapPoint(right.toFloat(), scale, transX).toInt()
+        bottom = screenPointToBitmapPoint(bottom.toFloat(), scale,  transY).toInt()
+    }
+}
+
 fun bitmapRectToScreenRect(bitmapRect: Rect, screenRect: Rect,
                            scale: Float,
                            transX: Float,

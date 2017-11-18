@@ -14,11 +14,11 @@ class BitmapLoader(val cellWidth: Int,
 
     private var initCell: Cell? = null
     private var cells: CopyOnWriteArrayList<Cell>? = null
-    private var loaderInterface: CellLoaderInterface? = null
+    @Volatile private var loaderInterface: CellLoaderInterface? = null
 
     private var width: Int = 0
     private var height: Int = 0
-    private var decoder: BitmapRegionDecoder? = null
+    @Volatile private var decoder: BitmapRegionDecoder? = null
     private val rect: Rect = Rect()
 
     fun setBitmap(input: InputStream?, screenWidth: Int , screenHeight: Int) {
@@ -45,7 +45,7 @@ class BitmapLoader(val cellWidth: Int,
         }
     }
 
-    fun setLoaderInterface(loader: CellLoaderInterface) {
+    fun setLoaderInterface(loader: CellLoaderInterface?) {
         loaderInterface = loader
     }
 
@@ -130,8 +130,9 @@ class BitmapLoader(val cellWidth: Int,
             it.bitmap = null
         }
         cells?.clear()
-        decoder?.recycle()
+        val tmp = decoder
         decoder = null
+        tmp?.recycle()
     }
 
     fun getWidth() = width
