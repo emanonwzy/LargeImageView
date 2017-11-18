@@ -100,34 +100,27 @@ class LargeImageView : View, CellLoaderInterface {
 
     private fun updateDisplayRect() {
         getDrawingRect(displayRect)
-        displayRect.offset(-transX.toInt(), -transY.toInt())
-
-        val displayWidth = displayRect.width() / scale
-        val displayHeight = displayRect.height() / scale
-        with(displayRect) {
-            left = (left / scale - displayWidth / 2).toInt()
-            top = (top / scale - displayHeight / 2).toInt()
-            right = (right / scale + displayWidth / 2).toInt()
-            bottom = (bottom / scale + displayHeight / 2).toInt()
-        }
+        screenRectToBitmapRect(displayRect, scale, transX, transY)
+        // 扩大显示范围，提前加载后面半屏的内容
+        displayRect.inset(-displayRect.width() / 2, -displayRect.height() / 2)
     }
 
-    override fun onDraw(canvas: Canvas?) {
+    override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
 
         val scaleSampleSize = getSampleSize(scale)
 
-        canvas?.save()
-        canvas?.translate(transX, transY)
-        canvas?.scale(scale * scaleSampleSize, scale * scaleSampleSize)
+        canvas.save()
+        canvas.translate(transX, transY)
+        canvas.scale(scale * scaleSampleSize, scale * scaleSampleSize)
 
         drawBackground(canvas, scaleSampleSize)
         drawCells(canvas, scaleSampleSize)
 
-        canvas?.restore()
+        canvas.restore()
     }
 
-    private fun drawBackground(canvas: Canvas?, scaleSampleSize: Int) {
+    private fun drawBackground(canvas: Canvas, scaleSampleSize: Int) {
         val cell = loader?.getInitCell()
         if (cell?.bitmap != null) {
             with(cell!!.region) {
@@ -136,11 +129,11 @@ class LargeImageView : View, CellLoaderInterface {
                 cellDrawRect.top = top / scaleSampleSize
                 cellDrawRect.bottom = bottom / scaleSampleSize
             }
-            canvas?.drawBitmap(cell.bitmap, null, cellDrawRect, null)
+            canvas.drawBitmap(cell.bitmap, null, cellDrawRect, null)
         }
     }
 
-    private fun drawCells(canvas: Canvas?, scaleSampleSize: Int) {
+    private fun drawCells(canvas: Canvas, scaleSampleSize: Int) {
         loader?.getCells()?.forEach {
             if (it.bitmap != null) {
                 with(it.region) {
@@ -149,7 +142,7 @@ class LargeImageView : View, CellLoaderInterface {
                     cellDrawRect.top = top / scaleSampleSize
                     cellDrawRect.bottom = bottom / scaleSampleSize
                 }
-                canvas?.drawBitmap(it.bitmap, null, cellDrawRect, null)
+                canvas.drawBitmap(it.bitmap, null, cellDrawRect, null)
             }
         }
     }
@@ -246,6 +239,11 @@ class LargeImageView : View, CellLoaderInterface {
     }
 
     private fun clear() {
+        scroller.forceFinished(true)
+        zoomer.forceFinished(true)
+
+        loaderHandler?.removeCallbacksAndMessages(null)
+        loader?.setLoaderInterface(null)
         loader?.stop()
         loaderThread?.quit()
 
