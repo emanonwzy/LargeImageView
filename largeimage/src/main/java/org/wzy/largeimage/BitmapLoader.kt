@@ -41,6 +41,8 @@ class BitmapLoader(val cellWidth: Int,
                 height = tempheight
                 initCell = Cell(bitmap, Rect(0, 0, width, height), options.inSampleSize)
                 decoder = BitmapRegionDecoder.newInstance(input, false)
+
+                loaderInterface?.onCellInit(width, height)
             }
         }
     }
@@ -98,7 +100,7 @@ class BitmapLoader(val cellWidth: Int,
 
                         Log.d(LOG_TAG, "decode cell, rect=" + cellRegion + ", bitmap=(" + cell.bitmap?.width + "," + cell.bitmap?.height + ")")
                     }
-                    loaderInterface?.cellLoaded(cell)
+                    loaderInterface?.onCellLoaded(cell)
                 }
             }
         }
