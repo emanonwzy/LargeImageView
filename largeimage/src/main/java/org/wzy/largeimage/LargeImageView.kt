@@ -361,7 +361,8 @@ class LargeImageView : View, CellLoaderInterface {
     }
 
     private fun hitTest(x: Float, y: Float): Boolean {
-        if (loader != null && loader!!.isInitied()) {
+        val hasLoaded = loader?.isInitied() ?: false
+        if (hasLoaded) {
             updateBitmapScreenRect()
             return bitmapScreenRect.contains(x.toInt(), y.toInt())
         }
