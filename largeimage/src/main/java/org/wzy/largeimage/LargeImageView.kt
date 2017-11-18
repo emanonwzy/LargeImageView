@@ -65,37 +65,19 @@ class LargeImageView : View, CellLoaderInterface {
             when (msg?.what) {
                 img.MSG_SET_IMAGE -> {
                     img.loader?.setBitmap(img.inputStream, img.width, img.height)
-                    img.updateInitFactor()
                 }
 
                 img.MSG_LOAD_CELL -> {
-                    img.updateDisplayRect()
                     img.loader?.loadCells(img.displayRect, img.scale)
                 }
             }
         }
     }
 
-    private fun updateInitFactor() {
-        if (loader != null) {
-            if (scale == -1.0f) {
-                val bitmapWidth = loader!!.getWidth()
-                val bitmapHeight = loader!!.getHeight()
-
-                scale = Math.min(width.toFloat() / bitmapWidth.toFloat(),
-                        height.toFloat() / bitmapHeight.toFloat())
-                minScale = scale
-                transX = (width - bitmapWidth * scale) / 2
-                transY = (height - bitmapHeight * scale) / 2
-            } else {
-                // restore from save state
-                sendMessage(MSG_LOAD_CELL)
-            }
-
-            updateDisplayRect()
-
-            postInvalidate()
-        }
+    private fun invalidateCells() {
+        updateDisplayRect()
+        sendMessage(MSG_LOAD_CELL)
+        invalidate()
     }
 
     private fun updateDisplayRect() {
@@ -172,8 +154,7 @@ class LargeImageView : View, CellLoaderInterface {
         if (tempX != transX || tempY != transY) {
             transX = tempX
             transY = tempY
-            sendMessage(MSG_LOAD_CELL)
-            invalidate()
+            invalidateCells()
             return true
         }
         return false
@@ -197,8 +178,7 @@ class LargeImageView : View, CellLoaderInterface {
             val newFocusY = bitmapPointToScreenPoint(bitmapY, tempScale, transY)
 
             if (!setTransXY(focusX - newFocusX, focusY - newFocusY)) {
-                sendMessage(MSG_LOAD_CELL)
-                invalidate()
+                invalidateCells()
             }
             return true
         }
@@ -255,10 +235,25 @@ class LargeImageView : View, CellLoaderInterface {
         minScale = 1.0f
     }
 
-    override fun cellLoaded(cell: Cell) {
+    override fun onCellInit(bitmapWidth: Int, bitmapHeight: Int) {
+        post {
+            if (scale == -1.0f) {
 
+                scale = Math.min(width.toFloat() / bitmapWidth.toFloat(),
+                        height.toFloat() / bitmapHeight.toFloat())
+                minScale = scale
+                transX = (width - bitmapWidth * scale) / 2
+                transY = (height - bitmapHeight * scale) / 2
+                updateDisplayRect()
+                invalidate()
+            } else {
+                invalidateCells()
+            }
+        }
+    }
+
+    override fun onCellLoaded(cell: Cell) {
         bitmapRectToScreenRect(cell.region, cellInvalidateRect, scale, transX, transY)
-
         with(cellInvalidateRect) {
             postInvalidate(left, top, right, bottom)
         }
