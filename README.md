@@ -23,5 +23,3 @@
 LargeImageView image = (LargeImageView) findViewById(R.id.img);
 image.setImageResource(new File("/mnt/sdcard/test.jpg"));
 ```
-
-That's it!
