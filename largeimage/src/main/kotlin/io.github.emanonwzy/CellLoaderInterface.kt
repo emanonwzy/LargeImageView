@@ -1,4 +1,4 @@
-package org.wzy.largeimage
+package io.github.emanonwzy
 
 /**
  * Created by zeyiwu on 01/09/2017.

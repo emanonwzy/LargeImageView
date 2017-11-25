@@ -6,7 +6,7 @@ import android.support.v7.app.AppCompatActivity
 import android.view.View
 import android.view.ViewTreeObserver
 import android.widget.Button
-import org.wzy.largeimage.LargeImageView
+import io.github.emanonwzy.LargeImageView
 import org.wzy.largeimageview.R
 
 /**

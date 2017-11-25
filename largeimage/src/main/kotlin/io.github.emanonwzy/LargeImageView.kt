@@ -1,4 +1,4 @@
-package org.wzy.largeimage
+package io.github.emanonwzy
 
 import android.content.Context
 import android.graphics.Canvas
