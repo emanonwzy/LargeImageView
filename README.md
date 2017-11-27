@@ -13,7 +13,7 @@
 
 ## Usage
 ```xml
-<org.wzy.largeimage.LargeImageView
+<LargeImageView
         android:id="@+id/img"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />

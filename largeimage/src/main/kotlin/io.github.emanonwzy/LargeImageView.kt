@@ -1,4 +1,4 @@
-package org.wzy.largeimage
+package io.github.emanonwzy
 
 import android.content.Context
 import android.graphics.Canvas
@@ -105,7 +105,7 @@ class LargeImageView : View, CellLoaderInterface {
     private fun drawBackground(canvas: Canvas, scaleSampleSize: Int) {
         val cell = loader?.getInitCell()
         if (cell?.bitmap != null) {
-            with(cell!!.region) {
+            with(cell.region) {
                 cellDrawRect.left = left / scaleSampleSize
                 cellDrawRect.right = right / scaleSampleSize
                 cellDrawRect.top = top / scaleSampleSize
@@ -235,15 +235,15 @@ class LargeImageView : View, CellLoaderInterface {
         minScale = 1.0f
     }
 
-    override fun onCellInit(bitmapWidth: Int, bitmapHeight: Int) {
+    override fun onCellInit(width: Int, height: Int) {
         post {
             if (scale == -1.0f) {
 
-                scale = Math.min(width.toFloat() / bitmapWidth.toFloat(),
-                        height.toFloat() / bitmapHeight.toFloat())
+                scale = Math.min(this.width.toFloat() / width.toFloat(),
+                        this.height.toFloat() / height.toFloat())
                 minScale = scale
-                transX = (width - bitmapWidth * scale) / 2
-                transY = (height - bitmapHeight * scale) / 2
+                transX = (this.width - width * scale) / 2
+                transY = (this.height - height * scale) / 2
                 updateDisplayRect()
                 invalidate()
             } else {

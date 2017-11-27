@@ -1,4 +1,4 @@
-package org.wzy.largeimage
+package io.github.emanonwzy
 
 import android.graphics.*
 import android.util.Log

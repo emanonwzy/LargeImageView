@@ -5,7 +5,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent">
 
-    <org.wzy.largeimage.LargeImageView
+    <io.github.emanonwzy.LargeImageView
         android:id="@+id/img"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
