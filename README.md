@@ -6,6 +6,12 @@
 
 ## Dependency
 
+```groovy
+dependencies {
+    implementation 'io.github.emanonwzy:largeimage:0.2.0'
+}
+```
+
 ## Features
 - 手势放大缩小／双击放大
 - 快速滑动(fling)
